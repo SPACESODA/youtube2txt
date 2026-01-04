@@ -7,13 +7,7 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "@distube/ytdl-core": "^4.16.12",
     "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "puppeteer": "^24.34.0",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "youtube-transcript": "^1.0.6",
-    "youtubei.js": "^16.0.1"
+    "express": "^4.18.2"
   }
 }
