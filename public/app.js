@@ -62,47 +62,43 @@ async function handleFetch() {
 // --- WATERFALL STRATEGY ---
 
 async function fetchTranscriptWaterfall(videoId) {
-    // Strategy 1: Piped API Rotation (JSON API)
-    // Expanded list of reliable public instances
+    // Strategy 1: Piped API via CORS Proxy
+    // We route even the APIs through the proxy to avoid CORS errors.
     const pipedInstances = [
         'https://pipedapi.kavin.rocks',
         'https://api.piped.io',
         'https://pipedapi.drgns.space',
-        'https://api.piped.privacy.com.de',
-        'https://pipedapi.tokhmi.xyz',
-        'https://piped-api.lunar.icu',
-        'https://pa.il.ax'
+        'https://pa.il.ax',
+        'https://pipedapi.tokhmi.xyz'
     ];
 
     for (const base of pipedInstances) {
         try {
-            console.log(`Attempting Piped API via: ${base}...`);
+            console.log(`Attempting Piped API via Proxy: ${base}...`);
             return await fetchViaPiped(videoId, base);
         } catch (e) {
             console.warn(`Piped (${base}) failed:`, e.message);
         }
     }
 
-    // Strategy 2: Invidious API Rotation
+    // Strategy 2: Invidious API via CORS Proxy
     const invidiousInstances = [
         'https://inv.tux.pizza',
-        'https://invidious.drgns.space',
         'https://vid.puffyan.us',
-        'https://yt.artemislena.eu',
-        'https://invidious.projectsegfau.lt',
-        'https://inv.nadeko.net'
+        'https://inv.nadeko.net',
+        'https://invidious.projectsegfau.lt'
     ];
 
     for (const base of invidiousInstances) {
         try {
-            console.log(`Attempting Invidious API via: ${base}...`);
+            console.log(`Attempting Invidious API via Proxy: ${base}...`);
             return await fetchViaInvidious(videoId, base);
         } catch (e) {
             console.warn(`Invidious (${base}) failed:`, e.message);
         }
     }
 
-    // Strategy 3: Scraping via corsproxy.io (Last resort as it's often blocked)
+    // Strategy 3: Direct Scraping via corsproxy.io (Classic method)
     try {
         console.log('Attempting scraping via corsproxy.io...');
         return await fetchViaScraping(videoId, 'https://corsproxy.io/?');
@@ -110,70 +106,61 @@ async function fetchTranscriptWaterfall(videoId) {
         console.warn('Scraping (corsproxy.io) failed:', e.message);
     }
 
-    // Strategy 4: Scraping via allorigins.win
-    try {
-        console.log('Attempting scraping via allorigins.win...');
-        return await fetchViaScraping(videoId, 'https://api.allorigins.win/raw?url=');
-    } catch (e) {
-        console.warn('Scraping (allorigins) failed:', e.message);
-    }
+    throw new Error('Could not fetch transcript. All methods/servers failed.');
+}
 
-    throw new Error('Could not fetch transcript. All 15+ methods/servers failed. YouTube is blocking everything.');
+// --- HELPER: FETCH THROUGH PROXY ---
+
+async function fetchWithProxy(targetUrl) {
+    // We use corsproxy.io to wrap ALL requests
+    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000); // 8s timeout
+
+    try {
+        const response = await fetch(proxyUrl, { signal: controller.signal });
+        if (!response.ok) throw new Error(`Status ${response.status}`);
+        return response;
+    } finally {
+        clearTimeout(timeout);
+    }
 }
 
 // --- METHOD: PIPED API ---
 
 async function fetchViaPiped(videoId, baseUrl) {
-    // Timeout of 5s to fail fast
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const listUrl = `${baseUrl}/streams/${videoId}`;
+    const resp = await fetchWithProxy(listUrl);
+    const data = await resp.json();
 
-    try {
-        const resp = await fetch(`${baseUrl}/streams/${videoId}`, { signal: controller.signal });
-        if (!resp.ok) throw new Error(`API Status ${resp.status}`);
-        const data = await resp.json();
+    const subtitles = data.subtitles;
+    if (!subtitles || !subtitles.length) throw new Error('No subtitles found');
 
-        const subtitles = data.subtitles;
-        if (!subtitles || !subtitles.length) throw new Error('No subtitles found');
+    const track = subtitles.find(s => s.code === 'en') || subtitles[0];
 
-        // Find English or first
-        const track = subtitles.find(s => s.code === 'en') || subtitles[0];
+    // Fetch subtitle text via proxy too
+    const subResp = await fetchWithProxy(track.url);
+    const text = await subResp.text();
 
-        // Piped subtitle URLs might also need CORS fetching if cross-domain issues arise, 
-        // but typically Piped sets CORS headers correctly.
-        const subResp = await fetch(track.url);
-        if (!subResp.ok) throw new Error('Failed to fetch subtitle text');
-
-        const text = await subResp.text();
-        return parseSubtitles(text);
-    } finally {
-        clearTimeout(timeout);
-    }
+    return parseSubtitles(text);
 }
 
 // --- METHOD: INVIDIOUS API ---
 
 async function fetchViaInvidious(videoId, baseUrl) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const listUrl = `${baseUrl}/api/v1/captions/${videoId}`;
+    const resp = await fetchWithProxy(listUrl);
+    const data = await resp.json();
 
-    try {
-        const resp = await fetch(`${baseUrl}/api/v1/captions/${videoId}`, { signal: controller.signal });
-        if (!resp.ok) throw new Error(`API Status ${resp.status}`);
+    if (!data.captions || !data.captions.length) throw new Error('No captions in response');
 
-        const data = await resp.json();
-        if (!data.captions || !data.captions.length) throw new Error('No captions in response');
+    const track = data.captions.find(c => c.languageCode === 'en') || data.captions[0];
+    const trackUrl = `${baseUrl}${track.url}`;
 
-        const track = data.captions.find(c => c.languageCode === 'en') || data.captions[0];
-        const trackUrl = `${baseUrl}${track.url}`;
+    const subResp = await fetchWithProxy(trackUrl);
+    const text = await subResp.text();
 
-        const subResp = await fetch(trackUrl);
-        if (!subResp.ok) throw new Error('Failed to fetch caption content');
-        const text = await subResp.text();
-        return parseSubtitles(text);
-    } finally {
-        clearTimeout(timeout);
-    }
+    return parseSubtitles(text);
 }
 
 // --- METHOD: SCRAPING HELPERS ---
@@ -189,7 +176,6 @@ async function fetchViaScraping(videoId, proxyBase) {
     const captionsUrl = extractCaptionsUrl(html);
     if (!captionsUrl) throw new Error('No captions found in HTML');
 
-    // Fetch XML
     const xmlProxyUrl = proxyBase + encodeURIComponent(captionsUrl);
     const xmlResp = await fetch(xmlProxyUrl);
     if (!xmlResp.ok) throw new Error('Failed to fetch caption XML');
@@ -228,7 +214,6 @@ function parseSubtitles(text) {
     if (text.trim().startsWith('WEBVTT') || text.includes('-->')) {
         return parseVTT(text);
     }
-    // Try JSON
     try {
         const json = JSON.parse(text);
         if (Array.isArray(json)) return json.map(i => ({
@@ -242,8 +227,6 @@ function parseSubtitles(text) {
             text: e.segs ? e.segs.map(s => s.utf8).join('') : ''
         })).filter(i => i.text);
     } catch (e) { }
-
-    // Fallback: assume raw text or unknown format, try VTT parser anyway
     return parseVTT(text);
 }
 
