@@ -10,6 +10,7 @@ const copyBtn = document.getElementById('copyBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 
 let currentVideoId = ''; // Global to hold current ID
+let currentVideoTitle = ''; // Store video title for downloads
 
 fetchBtn.addEventListener('click', handleFetch);
 videoUrlInput.addEventListener('keypress', (e) => {
@@ -27,7 +28,9 @@ copyBtn.addEventListener('click', () => {
 
 downloadBtn.addEventListener('click', () => {
     const text = transcriptContent.innerText;
-    const blob = new Blob([text], { type: 'text/plain' });
+    // Prepend title if available
+    const outputText = currentVideoTitle ? `${currentVideoTitle}\n\n${text}` : text;
+    const blob = new Blob([outputText], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -60,7 +63,9 @@ async function handleFetch() {
             throw new Error(errData.error || `Server Error: ${response.status}`);
         }
 
-        const transcript = await response.json();
+        const data = await response.json();
+        const transcript = data.segments;
+        currentVideoTitle = data.title;
 
         if (!transcript || transcript.length === 0) {
             throw new Error('No transcript available for this video.');
@@ -107,7 +112,9 @@ function extractVideoId(url) {
 
 function displayTranscript(transcript) {
     const formattedText = transcript.map(item => item.text).join(' ');
-    transcriptContent.innerText = formattedText;
+    // Prepend title to the UI content (so it can be copied easily)
+    const contentWithTitle = currentVideoTitle ? `${currentVideoTitle}\n\n${formattedText}` : formattedText;
+    transcriptContent.innerText = contentWithTitle;
     resultContainer.classList.remove('hidden');
 }
 

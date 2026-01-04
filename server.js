@@ -62,10 +62,11 @@ app.get('/transcript', async (req, res) => {
     if (!videoId) return res.status(400).json({ error: 'Missing videoId' });
 
     console.log(`[Server] Fetching transcript for: ${videoId}`);
-
+    
     try {
-        const transcript = await fetchTranscriptYtDlp(videoId);
-        res.json(transcript);
+        const segments = await fetchTranscriptYtDlp(videoId);
+        const title = await fetchVideoTitle(videoId);
+        res.json({ title, segments });
     } catch (error) {
         console.error('[Server] Error:', error.message);
         res.status(500).json({ error: error.message });
@@ -130,6 +131,34 @@ async function fetchTranscriptYtDlp(videoId) {
                 cleanup(outputBase);
             }
         });
+    });
+}
+
+async function fetchVideoTitle(videoId) {
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    return new Promise((resolve) => {
+        https.get(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
+        }, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                const match = data.match(/<title>(.*?)<\/title>/i);
+                if (match && match[1]) {
+                    // Clean up title (YouTube appends "- YouTube" and might have entities)
+                    let title = match[1]
+                        .replace(/&quot;/g, '"')
+                        .replace(/&#39;/g, "'")
+                        .replace(/&amp;/g, '&')
+                        .replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>')
+                        .replace(/\s*-\s*YouTube\s*$/i, '');
+                    resolve(title + ' - YouTube'); // Keep the - YouTube as user requested
+                } else {
+                    resolve('YouTube Video');
+                }
+            });
+        }).on('error', () => resolve('YouTube Video'));
     });
 }
 
