@@ -49,6 +49,11 @@ async function handleFetch() {
 
         console.log(`Starting transcript fetch for Video ID: ${videoId}`);
         const transcript = await fetchTranscriptWaterfall(videoId);
+
+        if (!transcript || transcript.length === 0) {
+            throw new Error('Transcript was empty after fetching.');
+        }
+
         displayTranscript(transcript);
 
     } catch (err) {
@@ -63,19 +68,20 @@ async function handleFetch() {
 
 async function fetchTranscriptWaterfall(videoId) {
     // Strategy 1: Piped API via CORS Proxy
-    // We route even the APIs through the proxy to avoid CORS errors.
     const pipedInstances = [
         'https://pipedapi.kavin.rocks',
         'https://api.piped.io',
         'https://pipedapi.drgns.space',
         'https://pa.il.ax',
-        'https://pipedapi.tokhmi.xyz'
+        'https://pipedapi.tokhmi.xyz',
+        'https://piped-api.lunar.icu'
     ];
 
     for (const base of pipedInstances) {
         try {
             console.log(`Attempting Piped API via Proxy: ${base}...`);
-            return await fetchViaPiped(videoId, base);
+            const result = await fetchViaPiped(videoId, base);
+            if (result && result.length > 0) return result;
         } catch (e) {
             console.warn(`Piped (${base}) failed:`, e.message);
         }
@@ -86,24 +92,34 @@ async function fetchTranscriptWaterfall(videoId) {
         'https://inv.tux.pizza',
         'https://vid.puffyan.us',
         'https://inv.nadeko.net',
-        'https://invidious.projectsegfau.lt'
+        'https://invidious.projectsegfau.lt',
+        'https://yt.artemislena.eu'
     ];
 
     for (const base of invidiousInstances) {
         try {
             console.log(`Attempting Invidious API via Proxy: ${base}...`);
-            return await fetchViaInvidious(videoId, base);
+            const result = await fetchViaInvidious(videoId, base);
+            if (result && result.length > 0) return result;
         } catch (e) {
             console.warn(`Invidious (${base}) failed:`, e.message);
         }
     }
 
-    // Strategy 3: Direct Scraping via corsproxy.io (Classic method)
+    // Strategy 3: Direct Scraping via corsproxy.io
     try {
         console.log('Attempting scraping via corsproxy.io...');
         return await fetchViaScraping(videoId, 'https://corsproxy.io/?');
     } catch (e) {
         console.warn('Scraping (corsproxy.io) failed:', e.message);
+    }
+
+    // Strategy 4: Direct Scraping via allorigins.win
+    try {
+        console.log('Attempting scraping via allorigins.win...');
+        return await fetchViaScraping(videoId, 'https://api.allorigins.win/raw?url=');
+    } catch (e) {
+        console.warn('Scraping (allorigins) failed:', e.message);
     }
 
     throw new Error('Could not fetch transcript. All methods/servers failed.');
@@ -112,18 +128,25 @@ async function fetchTranscriptWaterfall(videoId) {
 // --- HELPER: FETCH THROUGH PROXY ---
 
 async function fetchWithProxy(targetUrl) {
-    // We use corsproxy.io to wrap ALL requests
-    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000); // 8s timeout
+    const proxies = [
+        (url) => 'https://corsproxy.io/?' + encodeURIComponent(url),
+        (url) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url)
+    ];
 
-    try {
-        const response = await fetch(proxyUrl, { signal: controller.signal });
-        if (!response.ok) throw new Error(`Status ${response.status}`);
-        return response;
-    } finally {
-        clearTimeout(timeout);
+    // Try primary proxy, then fallback
+    for (const makeProxyUrl of proxies) {
+        try {
+            const proxyUrl = makeProxyUrl(targetUrl);
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 6000); // 6s timeout
+
+            const response = await fetch(proxyUrl, { signal: controller.signal });
+            clearTimeout(timeout);
+
+            if (response.ok) return response;
+        } catch (e) { /* continue */ }
     }
+    throw new Error('All CORS proxies failed to fetch ' + targetUrl);
 }
 
 // --- METHOD: PIPED API ---
@@ -138,11 +161,12 @@ async function fetchViaPiped(videoId, baseUrl) {
 
     const track = subtitles.find(s => s.code === 'en') || subtitles[0];
 
-    // Fetch subtitle text via proxy too
     const subResp = await fetchWithProxy(track.url);
     const text = await subResp.text();
 
-    return parseSubtitles(text);
+    const items = parseSubtitles(text);
+    if (!items || items.length === 0) throw new Error('Parsed empty subtitles from Piped');
+    return items;
 }
 
 // --- METHOD: INVIDIOUS API ---
@@ -160,7 +184,9 @@ async function fetchViaInvidious(videoId, baseUrl) {
     const subResp = await fetchWithProxy(trackUrl);
     const text = await subResp.text();
 
-    return parseSubtitles(text);
+    const items = parseSubtitles(text);
+    if (!items || items.length === 0) throw new Error('Parsed empty subtitles from Invidious');
+    return items;
 }
 
 // --- METHOD: SCRAPING HELPERS ---
@@ -181,7 +207,9 @@ async function fetchViaScraping(videoId, proxyBase) {
     if (!xmlResp.ok) throw new Error('Failed to fetch caption XML');
     const xmlText = await xmlResp.text();
 
-    return parseTranscriptXML(xmlText);
+    const result = parseTranscriptXML(xmlText);
+    if (!result || result.length === 0) throw new Error('Empty transcript after parsing XML');
+    return result;
 }
 
 function extractCaptionsUrl(html) {
@@ -211,9 +239,11 @@ function extractCaptionsUrl(html) {
 // --- PARSING UTILS ---
 
 function parseSubtitles(text) {
+    if (!text) return [];
     if (text.trim().startsWith('WEBVTT') || text.includes('-->')) {
         return parseVTT(text);
     }
+    // Try JSON
     try {
         const json = JSON.parse(text);
         if (Array.isArray(json)) return json.map(i => ({
@@ -227,6 +257,8 @@ function parseSubtitles(text) {
             text: e.segs ? e.segs.map(s => s.utf8).join('') : ''
         })).filter(i => i.text);
     } catch (e) { }
+
+    // Fallback VTT try
     return parseVTT(text);
 }
 
