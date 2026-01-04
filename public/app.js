@@ -84,9 +84,25 @@ async function handleFetch() {
 }
 
 function extractVideoId(url) {
-    const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[7].length == 11) ? match[7] : false;
+    url = url.trim();
+
+    // 1. Handle raw 11-character video IDs
+    if (/^[a-zA-Z0-9_-]{11}$/.test(url)) {
+        return url;
+    }
+
+    // 2. Patterns for various YouTube URL formats
+    const patterns = [
+        /(?:v=|\/)([a-zA-Z0-9_-]{11})(?:&|\?|$| )/, // watch?v=ID or /v/ID or shorts/ID
+        /youtu\.be\/([a-zA-Z0-9_-]{11})(?:\?|&|$| )/  // youtu.be/ID
+    ];
+
+    for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match && match[1]) return match[1];
+    }
+
+    return false;
 }
 
 function displayTranscript(transcript) {
