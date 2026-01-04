@@ -112,6 +112,7 @@ async function handleFetch() {
         if (!videoId) throw new Error('Please enter a valid YouTube video URL.');
 
         const langValue = currentSelectedLang;
+        requestKey = `${videoId}|${langValue || 'auto'}`;
 
         // CHECK CACHE
         const cached = getCachedTranscript(videoId, langValue);

@@ -6,7 +6,8 @@ const path = require('path');
 const https = require('https');
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 app.use(cors());
 app.use(express.static('public'));
@@ -139,15 +140,19 @@ app.get('/languages', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Local Transcript Server running at http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+    console.log(`Local Transcript Server running at http://${HOST}:${PORT}`);
 });
 
 // --- HELPER FUNCTIONS ---
 
 async function fetchTranscriptYtDlp(videoId, languageFilter) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
-    const outputBase = path.join(__dirname, `temp_${videoId}`);
+    const outputBase = path.join(
+        __dirname,
+        `temp_${videoId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    );
+    const outputPrefix = path.basename(outputBase);
 
     // Commands:
     // --skip-download: Don't download video
@@ -204,7 +209,7 @@ async function fetchTranscriptYtDlp(videoId, languageFilter) {
     // yt-dlp might create temp_ID.en.vtt or temp_ID.en-US.vtt
     const dir = __dirname;
     const files = fs.readdirSync(dir)
-        .filter(f => f.startsWith(`temp_${videoId}`) && f.endsWith('.vtt'));
+        .filter(f => f.startsWith(outputPrefix) && f.endsWith('.vtt'));
 
     if (files.length === 0) {
         cleanup(outputBase);

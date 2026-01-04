@@ -44,10 +44,10 @@ body {
     width: 100%;
     max-width: 700px;
     /* Slightly tighter for cleaner look */
-    padding: 2rem 1.5rem;
+    padding: 2rem 1rem;
     display: flex;
     flex-direction: column;
-    gap: 2.5rem;
+    gap: 2rem;
 }
 
 header {
@@ -293,6 +293,7 @@ button:active {
     border-radius: var(--radius);
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
+    margin-top: 12px;
     overflow: hidden;
     animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }

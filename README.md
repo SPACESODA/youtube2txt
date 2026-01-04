@@ -29,7 +29,7 @@ npm start
 ```
 This will:
 1.  Start the local server at `http://localhost:3000`.
-2.  Automatically download/update the `yt-dlp` binary if needed.
+2.  Automatically download the `yt-dlp` binary if needed.
 3.  Serve the web interface.
 
 **To Restart:**
