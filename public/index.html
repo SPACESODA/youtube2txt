@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Transcript Tool</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>YouTube Transcript Grabber</h1>
+            <p>Paste a YouTube URL below to extract the transcript instantly.</p>
+        </header>
+
+        <main>
+            <div class="input-group">
+                <input type="text" id="videoUrl" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+                <button id="fetchBtn">
+                    <span class="btn-text">Get Transcript</span>
+                    <div class="spinner hidden"></div>
+                </button>
+            </div>
+            
+            <div id="errorMsg" class="error-message hidden"></div>
+
+            <div id="resultContainer" class="result-container hidden">
+                <div class="result-header">
+                    <h2>Transcript</h2>
+                    <div class="actions">
+                        <button id="copyBtn" class="secondary-btn">Copy to Clipboard</button>
+                        <button id="downloadBtn" class="secondary-btn">Download .txt</button>
+                    </div>
+                </div>
+                <div id="transcriptContent" class="transcript-content"></div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by Cloudflare Pages</p>
+        </footer>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
