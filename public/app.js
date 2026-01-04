@@ -47,20 +47,117 @@ async function handleFetch() {
         const videoId = extractVideoId(url);
         if (!videoId) throw new Error('Invalid YouTube URL');
 
-        const response = await fetch(`/api/transcript?videoId=${videoId}`);
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Failed to fetch transcript');
-        }
-
-        displayTranscript(data.transcript);
+        const transcript = await fetchTranscript(videoId);
+        displayTranscript(transcript);
 
     } catch (err) {
+        console.error(err);
         showError(err.message);
     } finally {
         setLoading(false);
     }
+}
+
+async function fetchTranscript(videoId) {
+    // 1. Fetch the video page via CORS proxy
+    // We use AllOrigins or corsproxy.io. corsproxy.io is often faster/more reliable for this.
+    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`);
+
+    const response = await fetch(proxyUrl);
+    if (!response.ok) {
+        throw new Error('Failed to fetch video page');
+    }
+    const html = await response.text();
+
+    // 2. Extract Captions URL
+    const captionsUrl = extractCaptionsUrl(html);
+    if (!captionsUrl) {
+        if (html.includes('class="g-recaptcha"')) {
+            throw new Error('YouTube is blocking this request (Bot detected). Please try again later.');
+        }
+        if (!html.includes('ytInitialPlayerResponse')) {
+            throw new Error('Could not parse YouTube page. The video might be private or unavailable.');
+        }
+        throw new Error('No transcript found for this video (or it is disabled).');
+    }
+
+    // 3. Fetch the actual transcript XML via CORS proxy
+    const proxyTranscriptUrl = 'https://corsproxy.io/?' + encodeURIComponent(captionsUrl);
+    const transcriptResponse = await fetch(proxyTranscriptUrl);
+    if (!transcriptResponse.ok) {
+        throw new Error('Failed to fetch transcript data');
+    }
+    const transcriptXml = await transcriptResponse.text();
+
+    // 4. Parse XML
+    const transcript = parseTranscript(transcriptXml);
+    if (!transcript || transcript.length === 0) {
+        throw new Error('Transcript was empty after parsing.');
+    }
+
+    return transcript;
+}
+
+function extractCaptionsUrl(html) {
+    try {
+        let playerResponse = null;
+        const playerResponseMatch = html.match(/ytInitialPlayerResponse\s*=\s*({.+?});/);
+
+        if (playerResponseMatch) {
+            playerResponse = JSON.parse(playerResponseMatch[1]);
+        }
+
+        if (!playerResponse) {
+            const splitHtml = html.split('"captions":');
+            if (splitHtml.length > 1) {
+                const potentialJson = splitHtml[1].split(',"videoDetails')[0].replace(/\n/g, '');
+                playerResponse = { captions: JSON.parse(potentialJson) };
+            }
+        }
+
+        if (!playerResponse) return null;
+
+        const captions = playerResponse.captions ||
+            (playerResponse.playerCaptionsTracklistRenderer ? { playerCaptionsTracklistRenderer: playerResponse.playerCaptionsTracklistRenderer } : null);
+
+        if (!captions || !captions.playerCaptionsTracklistRenderer) return null;
+
+        const captionTracks = captions.playerCaptionsTracklistRenderer.captionTracks;
+        if (!captionTracks || captionTracks.length === 0) return null;
+
+        // Sort by priority: English -> Auto -> First
+        captionTracks.sort((a, b) => {
+            if (a.languageCode === 'en') return -1;
+            if (b.languageCode === 'en') return 1;
+            return 0;
+        });
+
+        return captionTracks[0].baseUrl;
+    } catch (e) {
+        console.error('Error parsing captions JSON:', e);
+        return null;
+    }
+}
+
+function parseTranscript(xml) {
+    const regex = /<text start="([\d.]+)" dur="([\d.]+)".*?>(.*?)<\/text>/g;
+    const matches = [];
+    let match;
+
+    while ((match = regex.exec(xml)) !== null) {
+        matches.push({
+            start: parseFloat(match[1]),
+            duration: parseFloat(match[2]),
+            text: decodeHTMLEntities(match[3]),
+        });
+    }
+    return matches;
+}
+
+function decodeHTMLEntities(text) {
+    const txt = document.createElement("textarea");
+    txt.innerHTML = text;
+    return txt.value;
 }
 
 function extractVideoId(url) {
@@ -70,16 +167,7 @@ function extractVideoId(url) {
 }
 
 function displayTranscript(transcript) {
-    if (!transcript || transcript.length === 0) {
-        showError('No transcript found for this video.');
-        return;
-    }
-
-    const formattedText = transcript.map(item => {
-        // Optional: Include timestamps? For now just text block style
-        return item.text;
-    }).join(' ');
-
+    const formattedText = transcript.map(item => item.text).join(' ');
     transcriptContent.innerText = formattedText;
     resultContainer.classList.remove('hidden');
 }
