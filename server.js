@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { execSync, exec } = require('child_process');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
@@ -13,60 +13,126 @@ app.use(express.static('public'));
 
 // --- INITIALIZATION ---
 const BIN_DIR = path.join(__dirname, 'bin');
-const YTDLP_PATH = path.join(__dirname, 'yt-dlp');
+const LOCAL_YTDLP_BASENAME = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
+const LOCAL_YTDLP_PATH = path.join(__dirname, LOCAL_YTDLP_BASENAME);
+let YTDLP_PATH = null;
 
 // 1. Setup Python Environment (Symlink python3 -> bin/python)
 function setupPython() {
+    if (process.platform === 'win32') {
+        return;
+    }
     if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR);
     const symlinkPath = path.join(BIN_DIR, 'python');
 
     if (!fs.existsSync(symlinkPath)) {
-        try {
-            const python3Path = execSync('which python3').toString().trim();
-            console.log(`[Server] Found python3 at: ${python3Path}`);
-            fs.symlinkSync(python3Path, symlinkPath);
-            console.log(`[Server] Created python symlink.`);
-        } catch (e) {
-            console.error(`[Server] Failed to setup python symlink: ${e.message}. yt-dlp might fail if 'python' is not in PATH.`);
+        const python3Path = findExecutableInPath(['python3', 'python']);
+        if (python3Path) {
+            console.log(`[Server] Found python at: ${python3Path}`);
+            try {
+                fs.symlinkSync(python3Path, symlinkPath);
+                console.log('[Server] Created python symlink.');
+            } catch (e) {
+                console.error(`[Server] Failed to setup python symlink: ${e.message}. yt-dlp might fail if 'python' is not in PATH.`);
+            }
+        } else {
+            console.error("[Server] Failed to setup python symlink: python not found in PATH. yt-dlp might fail if 'python' is not in PATH.");
         }
     }
     // Update PATH for this process
-    process.env.PATH = `${BIN_DIR}:${process.env.PATH}`;
+    process.env.PATH = `${BIN_DIR}${path.delimiter}${process.env.PATH}`;
 }
 
 // 2. Download yt-dlp binary if missing
 function setupYtDlp() {
-    if (fs.existsSync(YTDLP_PATH)) {
-        console.log('[Server] yt-dlp binary exists.');
-        return;
+    const configuredPath = process.env.YTDLP_PATH;
+    if (configuredPath && fs.existsSync(configuredPath)) {
+        YTDLP_PATH = configuredPath;
+        console.log(`[Server] Using yt-dlp from YTDLP_PATH: ${YTDLP_PATH}`);
+        return Promise.resolve();
     }
+
+    if (fs.existsSync(LOCAL_YTDLP_PATH)) {
+        YTDLP_PATH = LOCAL_YTDLP_PATH;
+        console.log('[Server] yt-dlp binary exists locally.');
+        return Promise.resolve();
+    }
+
+    const pathCandidate = findExecutableInPath(process.platform === 'win32' ? ['yt-dlp.exe', 'yt-dlp'] : ['yt-dlp']);
+    if (pathCandidate) {
+        YTDLP_PATH = pathCandidate;
+        console.log(`[Server] Using yt-dlp from PATH: ${YTDLP_PATH}`);
+        return Promise.resolve();
+    }
+
     console.log('[Server] Downloading yt-dlp binary...');
-    const file = fs.createWriteStream(YTDLP_PATH);
-    https.get('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos', (response) => {
-        response.pipe(file);
-        file.on('finish', () => {
-            file.close();
-            execSync(`chmod a+rx ${YTDLP_PATH}`);
-            console.log('[Server] yt-dlp downloaded and executable.');
-        });
+    const url = getYtDlpDownloadUrl();
+    const tempPath = `${LOCAL_YTDLP_PATH}.tmp`;
+    try {
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch (e) {
+        // Ignore temp cleanup errors.
+    }
+
+    return downloadFile(url, tempPath).then(() => {
+        fs.renameSync(tempPath, LOCAL_YTDLP_PATH);
+        if (process.platform !== 'win32') {
+            fs.chmodSync(LOCAL_YTDLP_PATH, 0o755);
+        }
+        YTDLP_PATH = LOCAL_YTDLP_PATH;
+        console.log('[Server] yt-dlp downloaded and executable.');
     });
 }
 
 setupPython();
-setupYtDlp();
+const ytdlpReady = setupYtDlp();
 
 // --- ROUTES ---
 
 app.get('/transcript', async (req, res) => {
     const videoId = req.query.videoId;
+    const lang = typeof req.query.lang === 'string' ? req.query.lang.trim() : '';
     if (!videoId) return res.status(400).json({ error: 'Missing videoId' });
+    if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+        return res.status(400).json({ error: 'Invalid videoId format' });
+    }
+    if (lang && !/^[a-zA-Z0-9,-]+$/.test(lang)) {
+        return res.status(400).json({ error: 'Invalid lang format' });
+    }
 
     console.log(`[Server] Fetching transcript for: ${videoId}`);
     
     try {
-        const segments = await fetchTranscriptYtDlp(videoId);
-        const title = await fetchVideoTitle(videoId);
+        await ytdlpReady;
+        const metadata = await fetchVideoMetadata(videoId);
+        const languageFilter = lang && lang.toLowerCase() !== 'auto' ? lang : null;
+        const preferredLanguage = languageFilter || metadata.captionLanguage || 'en,en-US,en-GB';
+        if (!languageFilter && metadata.captionLanguage) {
+            console.log(`[Server] Auto-selected subtitle language: ${metadata.captionLanguage}`);
+        }
+        const segments = await fetchTranscriptYtDlp(videoId, preferredLanguage);
+        const title = metadata.title;
         res.json({ title, segments });
+    } catch (error) {
+        console.error('[Server] Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/languages', async (req, res) => {
+    const videoId = req.query.videoId;
+    if (!videoId) return res.status(400).json({ error: 'Missing videoId' });
+    if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+        return res.status(400).json({ error: 'Invalid videoId format' });
+    }
+
+    try {
+        const metadata = await fetchVideoMetadata(videoId);
+        const languages = buildLanguageOptions(metadata.captionTracks || []);
+        res.json({
+            defaultLang: metadata.captionLanguage || '',
+            languages
+        });
     } catch (error) {
         console.error('[Server] Error:', error.message);
         res.status(500).json({ error: error.message });
@@ -79,7 +145,7 @@ app.listen(PORT, () => {
 
 // --- HELPER FUNCTIONS ---
 
-async function fetchTranscriptYtDlp(videoId) {
+async function fetchTranscriptYtDlp(videoId, languageFilter) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     const outputBase = path.join(__dirname, `temp_${videoId}`);
 
@@ -91,50 +157,74 @@ async function fetchTranscriptYtDlp(videoId) {
     // --output: Output filename template
     // --sub-format vtt: Ensure VTT format for easy parsing
 
-    const cmd = `./yt-dlp --skip-download --write-subs --write-auto-subs --sub-lang "en,en-US,en-GB" --sub-format vtt --output "${outputBase}" "${url}"`;
+    if (!YTDLP_PATH) {
+        throw new Error('yt-dlp is not available.');
+    }
+    const jsRuntime = `node:${process.execPath}`;
+    const cookiesPath = process.env.YTDLP_COOKIES ? path.resolve(process.env.YTDLP_COOKIES) : null;
+    const selectedLanguage = languageFilter;
 
-    return new Promise((resolve, reject) => {
-        // Use exec with increased buffer
-        exec(cmd, { cwd: __dirname, maxBuffer: 1024 * 1024 * 5 }, (error, stdout, stderr) => {
-            if (error) {
-                // If error, check if it's just "no subtitles" warning?
-                // yt-dlp returns non-zero if download fails.
-                console.error(`[yt-dlp] Error: ${stderr}`);
-                // Cleanup potentially
-                cleanup(outputBase);
-                return reject(new Error('Failed to fetch subtitles. ' + stderr.substring(0, 100)));
-            }
+    const args = [
+        '--skip-download',
+        '--write-subs',
+        '--write-auto-subs',
+        '--sub-lang', selectedLanguage,
+        '--sub-format', 'vtt',
+        '--js-runtimes', jsRuntime,
+        '--output', outputBase
+    ];
 
-            // Find the created file
-            // yt-dlp might create temp_ID.en.vtt or temp_ID.en-US.vtt
-            const dir = __dirname;
-            const files = fs.readdirSync(dir).filter(f => f.startsWith(`temp_${videoId}`) && f.endsWith('.vtt'));
+    if (cookiesPath) {
+        if (fs.existsSync(cookiesPath)) {
+            const outputIndex = args.indexOf('--output');
+            const insertIndex = outputIndex === -1 ? args.length : outputIndex;
+            args.splice(insertIndex, 0, '--cookies', cookiesPath);
+        } else {
+            console.warn(`[Server] YTDLP_COOKIES file not found: ${cookiesPath}`);
+        }
+    }
 
-            if (files.length === 0) {
-                // Cleanup
-                cleanup(outputBase);
-                return reject(new Error('No English transcript found.'));
-            }
+    args.push(url);
+    const { code, stderr } = await runYtDlp(args);
+    if (code !== 0) {
+        console.error(`[yt-dlp] Error: ${stderr}`);
+        cleanup(outputBase);
+        const errorLine = stderr
+            .split('\n')
+            .map(line => line.trim())
+            .find(line => line.startsWith('ERROR:'));
+        const errorDetail = errorLine
+            ? errorLine.replace(/^ERROR:\s*/, '')
+            : stderr.trim();
+        const trimmedDetail = errorDetail ? ` ${errorDetail.slice(0, 200)}` : '';
+        throw new Error(`Subtitle download failed.${trimmedDetail}`);
+    }
 
-            // Pick first file
-            const subtitleFile = path.join(dir, files[0]);
-            console.log(`[Server] Reading subtitle file: ${files[0]}`);
+    // Find the created file
+    // yt-dlp might create temp_ID.en.vtt or temp_ID.en-US.vtt
+    const dir = __dirname;
+    const files = fs.readdirSync(dir)
+        .filter(f => f.startsWith(`temp_${videoId}`) && f.endsWith('.vtt'));
 
-            try {
-                const content = fs.readFileSync(subtitleFile, 'utf8');
-                const parsed = parseVTT(content);
-                resolve(parsed);
-            } catch (e) {
-                reject(e);
-            } finally {
-                // Cleanup ALL temp files for this ID
-                cleanup(outputBase);
-            }
-        });
-    });
+    if (files.length === 0) {
+        cleanup(outputBase);
+        throw new Error('No transcript found.');
+    }
+
+    try {
+        const selected = pickBestSubtitle(files, dir);
+        if (!selected) {
+            throw new Error('No readable transcript found.');
+        }
+        console.log(`[Server] Reading subtitle file: ${selected.file}`);
+        return selected.parsed;
+    } finally {
+        // Cleanup ALL temp files for this ID
+        cleanup(outputBase);
+    }
 }
 
-async function fetchVideoTitle(videoId) {
+async function fetchVideoMetadata(videoId) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     return new Promise((resolve) => {
         https.get(url, {
@@ -144,6 +234,10 @@ async function fetchVideoTitle(videoId) {
             res.on('data', chunk => data += chunk);
             res.on('end', () => {
                 const match = data.match(/<title>(.*?)<\/title>/i);
+                const playerResponse = extractPlayerResponse(data);
+                const rawCaptionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+                const captionLanguage = pickCaptionLanguage(playerResponse, rawCaptionTracks);
+                const captionTracks = extractCaptionTracks(rawCaptionTracks);
                 if (match && match[1]) {
                     // Clean up title (YouTube appends "- YouTube" and might have entities)
                     let title = match[1]
@@ -153,12 +247,12 @@ async function fetchVideoTitle(videoId) {
                         .replace(/&lt;/g, '<')
                         .replace(/&gt;/g, '>')
                         .replace(/\s*-\s*YouTube\s*$/i, '');
-                    resolve(title + ' - YouTube'); // Keep the - YouTube as user requested
+                    resolve({ title: title + ' - YouTube', captionLanguage, captionTracks }); // Keep the - YouTube as user requested
                 } else {
-                    resolve('YouTube Video');
+                    resolve({ title: 'YouTube Video', captionLanguage, captionTracks });
                 }
             });
-        }).on('error', () => resolve('YouTube Video'));
+        }).on('error', () => resolve({ title: 'YouTube Video', captionLanguage: null, captionTracks: [] }));
     });
 }
 
@@ -216,4 +310,205 @@ function parseVTT(vttText) {
     return items.map(item => ({
         text: item.text.replace(/<[^>]*>/g, '').trim() // Remove any inner tags
     })).filter(i => i.text); // Remove empty
+}
+
+function pickBestSubtitle(files, dir) {
+    const candidates = files.map((file) => {
+        try {
+            const content = fs.readFileSync(path.join(dir, file), 'utf8');
+            const parsed = parseVTT(content);
+            const textLength = parsed.reduce((sum, item) => sum + item.text.length, 0);
+            return { file, parsed, textLength };
+        } catch (e) {
+            return null;
+        }
+    }).filter(Boolean);
+
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => b.textLength - a.textLength || a.file.localeCompare(b.file));
+    return candidates[0];
+}
+
+function runYtDlp(args) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(YTDLP_PATH, args, { cwd: __dirname });
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (chunk) => {
+            stdout += chunk.toString();
+        });
+        child.stderr.on('data', (chunk) => {
+            stderr += chunk.toString();
+        });
+        child.on('error', reject);
+        child.on('close', (code) => resolve({ code, stdout, stderr }));
+    });
+}
+
+function extractPlayerResponse(html) {
+    const marker = 'ytInitialPlayerResponse';
+    const markerIndex = html.indexOf(marker);
+    if (markerIndex === -1) return null;
+    const braceStart = html.indexOf('{', markerIndex);
+    if (braceStart === -1) return null;
+    let depth = 0;
+    let inString = false;
+    let escaping = false;
+    for (let i = braceStart; i < html.length; i++) {
+        const char = html[i];
+        if (inString) {
+            if (escaping) {
+                escaping = false;
+            } else if (char === '\\') {
+                escaping = true;
+            } else if (char === '"') {
+                inString = false;
+            }
+            continue;
+        }
+        if (char === '"') {
+            inString = true;
+            continue;
+        }
+        if (char === '{') depth += 1;
+        if (char === '}') {
+            depth -= 1;
+            if (depth === 0) {
+                const jsonText = html.slice(braceStart, i + 1);
+                try {
+                    return JSON.parse(jsonText);
+                } catch (e) {
+                    return null;
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function pickCaptionLanguage(playerResponse, captionTracks) {
+    const captions = playerResponse?.captions?.playerCaptionsTracklistRenderer;
+    const tracks = captionTracks || captions?.captionTracks || [];
+    if (tracks.length === 0) return null;
+    const audioTracks = captions?.audioTracks || [];
+    const defaultAudioTrack = audioTracks.find((track) => track.audioTrackType === 'AUDIO_TRACK_TYPE_DEFAULT') || audioTracks[0];
+    if (defaultAudioTrack && Array.isArray(defaultAudioTrack.captionTrackIndices)) {
+        for (const index of defaultAudioTrack.captionTrackIndices) {
+            const track = tracks[index];
+            if (track && track.kind !== 'asr') return track.languageCode;
+        }
+        const fallbackIndex = defaultAudioTrack.captionTrackIndices[0];
+        if (typeof fallbackIndex === 'number' && tracks[fallbackIndex]) {
+            return tracks[fallbackIndex].languageCode;
+        }
+    }
+    const manualTrack = tracks.find((track) => track.kind !== 'asr');
+    if (manualTrack) return manualTrack.languageCode;
+    return tracks[0]?.languageCode || null;
+}
+
+function extractCaptionTracks(captionTracks) {
+    return (captionTracks || []).map((track) => ({
+        code: track.languageCode,
+        name: extractCaptionName(track.name),
+        isAuto: track.kind === 'asr'
+    })).filter((track) => track.code);
+}
+
+function extractCaptionName(name) {
+    if (!name) return null;
+    if (typeof name.simpleText === 'string') return name.simpleText.trim();
+    if (Array.isArray(name.runs)) {
+        return name.runs.map((run) => run.text).join('').trim();
+    }
+    return null;
+}
+
+function buildLanguageOptions(captionTracks) {
+    const byCode = new Map();
+    captionTracks.forEach((track) => {
+        const code = track.code;
+        if (!code) return;
+        const existing = byCode.get(code);
+        if (!existing) {
+            byCode.set(code, {
+                code,
+                name: track.name || code,
+                isAuto: track.isAuto
+            });
+            return;
+        }
+        if (existing.isAuto && !track.isAuto) {
+            existing.isAuto = false;
+            if (track.name) existing.name = track.name;
+        }
+    });
+
+    return Array.from(byCode.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function getYtDlpDownloadUrl() {
+    if (process.platform === 'win32') {
+        return 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe';
+    }
+    if (process.platform === 'darwin') {
+        return 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos';
+    }
+    return 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
+}
+
+function findExecutableInPath(names) {
+    const pathEntries = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+    const candidateNames = Array.isArray(names) ? names : [names];
+    for (const entry of pathEntries) {
+        for (const name of candidateNames) {
+            const fullPath = path.join(entry, name);
+            if (fs.existsSync(fullPath)) return fullPath;
+        }
+    }
+    return null;
+}
+
+function downloadFile(url, destPath) {
+    return new Promise((resolve, reject) => {
+        const maxRedirects = 5;
+
+        const request = (currentUrl, redirectsLeft) => {
+            const req = https.get(currentUrl, (res) => {
+                const status = res.statusCode || 0;
+
+                if ([301, 302, 303, 307, 308].includes(status)) {
+                    if (!res.headers.location) {
+                        res.resume();
+                        return reject(new Error('Download redirect missing location header.'));
+                    }
+                    if (redirectsLeft <= 0) {
+                        res.resume();
+                        return reject(new Error('Too many redirects while downloading yt-dlp.'));
+                    }
+                    const nextUrl = new URL(res.headers.location, currentUrl).toString();
+                    res.resume();
+                    return request(nextUrl, redirectsLeft - 1);
+                }
+
+                if (status !== 200) {
+                    res.resume();
+                    return reject(new Error(`Failed to download yt-dlp (status ${status}).`));
+                }
+
+                const file = fs.createWriteStream(destPath);
+                res.pipe(file);
+                file.on('finish', () => file.close(resolve));
+                file.on('error', (err) => {
+                    try { fs.unlinkSync(destPath); } catch (e) { }
+                    reject(err);
+                });
+            });
+
+            req.on('error', reject);
+        };
+
+        request(url, maxRedirects);
+    });
 }

@@ -15,7 +15,7 @@
     <div class="container">
         <header>
             <h1>YouTube Transcript Grabber</h1>
-            <p>Get a clean text transcript from any YouTube video instantly.</p>
+            <p>Get a clean text transcript from YouTube video!</p>
         </header>
 
         <main>
@@ -25,6 +25,15 @@
                     <span class="btn-text">Get Transcript</span>
                     <div class="spinner hidden"></div>
                 </button>
+                <div id="langSpinner" class="spinner spinner-inline hidden"></div>
+                <div id="customSelect" class="custom-select hidden">
+                    <button id="selectTrigger" class="select-trigger">
+                        <span id="selectedLabel">Auto</span>
+                    </button>
+                    <div id="selectOptions" class="select-options hidden">
+                        <!-- Options will be populated by JS -->
+                    </div>
+                </div>
             </div>
 
             <div id="errorMsg" class="error-message hidden"></div>
@@ -42,7 +51,7 @@
         </main>
 
         <footer>
-            <p>v1.0.5</p>
+            <p>v1.0.6</p>
         </footer>
     </div>
     <script src="app.js"></script>

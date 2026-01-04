@@ -67,7 +67,7 @@ header h1 {
 header p {
     color: var(--text-secondary);
     font-size: 1.125rem;
-    max-width: 400px;
+    max-width: 480px;
     margin: 0 auto;
 }
 
@@ -136,6 +136,106 @@ button:active {
     transform: translateY(1px);
 }
 
+/* Custom Select Component */
+.custom-select {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+}
+
+.select-trigger {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.75rem 2.75rem 0.75rem 1.75rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    font-family: var(--font);
+    min-width: 140px;
+    position: relative;
+    white-space: nowrap;
+}
+
+.select-trigger:hover {
+    background: var(--primary-hover);
+}
+
+.select-trigger:active {
+    transform: translateY(1px);
+}
+
+.select-trigger::after {
+    content: '';
+    position: absolute;
+    right: 1.25rem;
+    top: 50%;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #ffffff;
+    transform: translateY(-50%);
+    pointer-events: none;
+    transition: transform 0.2s;
+}
+
+.custom-select.open .select-trigger::after {
+    transform: translateY(-50%) rotate(180deg);
+}
+
+.select-options {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    z-index: 100;
+    min-width: 160px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 0.5rem;
+    animation: dropdownSlide 0.2s ease-out;
+}
+
+@keyframes dropdownSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.select-option {
+    padding: 0.625rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9375rem;
+    color: var(--text);
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.select-option:hover {
+    background: var(--bg);
+    color: var(--primary);
+}
+
+.select-option.selected {
+    background: rgba(194, 65, 12, 0.1);
+    color: var(--primary);
+}
+
+.select-trigger:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
 /* Mobile Breakpoint for Input */
 @media (max-width: 600px) {
     .input-group {
@@ -170,6 +270,20 @@ button:active {
 
     header h1 {
         font-size: 2rem;
+    }
+
+    .custom-select {
+        width: 100%;
+    }
+    
+    .select-trigger {
+        width: 100%;
+    }
+    
+    .select-options {
+        width: 100%;
+        left: 0;
+        right: 0;
     }
 }
 
@@ -264,6 +378,17 @@ footer {
     border-radius: 50%;
     border-top-color: white;
     animation: spin 0.8s linear infinite;
+}
+
+.spinner-inline {
+    border-color: rgba(17, 24, 39, 0.2);
+    border-top-color: var(--primary);
+    width: 18px;
+    height: 18px;
+    align-self: center;
+    flex-shrink: 0;
+    margin-left: 0.5rem;
+    margin-right: 0.5rem;
 }
 
 @keyframes spin {
