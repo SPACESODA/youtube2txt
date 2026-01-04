@@ -9,6 +9,8 @@ const errorMsg = document.getElementById('errorMsg');
 const copyBtn = document.getElementById('copyBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 
+let currentVideoId = ''; // Global to hold current ID
+
 fetchBtn.addEventListener('click', handleFetch);
 videoUrlInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') handleFetch();
@@ -29,7 +31,7 @@ downloadBtn.addEventListener('click', () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'transcript.txt';
+    a.download = currentVideoId ? `youtube_${currentVideoId}.txt` : 'transcript.txt';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -47,6 +49,7 @@ async function handleFetch() {
         const videoId = extractVideoId(url);
         if (!videoId) throw new Error('Please enter a valid YouTube video URL.');
 
+        currentVideoId = videoId; // Save for download filename
         console.log(`Requesting transcript for ${videoId} from local server...`);
 
         // DIRECT LOCAL SERVER FETCH
