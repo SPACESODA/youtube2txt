@@ -62,42 +62,95 @@ async function handleFetch() {
 // --- WATERFALL STRATEGY ---
 
 async function fetchTranscriptWaterfall(videoId) {
-    // Strategy 1: Default Scraping via corsproxy.io (Fastest)
+    // Strategy 1: Piped API Rotation (Most reliable JSON API)
+    // We try multiple known public instances.
+    const pipedInstances = [
+        'https://pipedapi.kavin.rocks',
+        'https://api.piped.io',
+        'https://pipedapi.drgns.space',
+        'https://api.piped.privacy.com.de'
+    ];
+
+    for (const base of pipedInstances) {
+        try {
+            console.log(`Attempting Piped API via: ${base}...`);
+            return await fetchViaPiped(videoId, base);
+        } catch (e) {
+            console.warn(`Piped (${base}) failed:`, e.message);
+        }
+    }
+
+    // Strategy 2: Default Scraping via corsproxy.io
     try {
-        console.log('Attempt 1: Scraping via corsproxy.io...');
+        console.log('Attempting scraping via corsproxy.io...');
         return await fetchViaScraping(videoId, 'https://corsproxy.io/?');
     } catch (e) {
-        console.warn('Attempt 1 failed:', e.message);
+        console.warn('Scraping (corsproxy.io) failed:', e.message);
     }
 
-    // Strategy 2: Scraping via allorigins.win (Backup Proxy)
+    // Strategy 3: Invidious API Rotation
+    const invidiousInstances = [
+        'https://inv.tux.pizza',
+        'https://invidious.drgns.space',
+        'https://vid.puffyan.us',
+        'https://yt.artemislena.eu'
+    ];
+
+    for (const base of invidiousInstances) {
+        try {
+            console.log(`Attempting Invidious API via: ${base}...`);
+            return await fetchViaInvidious(videoId, base);
+        } catch (e) {
+            console.warn(`Invidious (${base}) failed:`, e.message);
+        }
+    }
+
+    // Strategy 4: Scraping via allorigins.win
     try {
-        console.log('Attempt 2: Scraping via allorigins.win...');
+        console.log('Attempting scraping via allorigins.win...');
         return await fetchViaScraping(videoId, 'https://api.allorigins.win/raw?url=');
     } catch (e) {
-        console.warn('Attempt 2 failed:', e.message);
+        console.warn('Scraping (allorigins) failed:', e.message);
     }
 
-    // Strategy 3: Piped API (Public Instance)
-    try {
-        console.log('Attempt 3: Piped API...');
-        return await fetchViaPiped(videoId);
-    } catch (e) {
-        console.warn('Attempt 3 failed:', e.message);
-    }
-
-    // Strategy 4: Invidious API (Public Instance)
-    try {
-        console.log('Attempt 4: Invidious API...');
-        return await fetchViaInvidious(videoId);
-    } catch (e) {
-        console.warn('Attempt 4 failed:', e.message);
-    }
-
-    throw new Error('Could not fetch transcript. All methods failed (blocked or unavailable).');
+    throw new Error('Could not fetch transcript. All servers/methods failed. Please try again later.');
 }
 
-// --- METHOD 1 & 2: SCRAPING HELPERS ---
+// --- METHOD: PIPED API ---
+
+async function fetchViaPiped(videoId, baseUrl) {
+    const resp = await fetch(`${baseUrl}/streams/${videoId}`);
+    if (!resp.ok) throw new Error(`API Status ${resp.status}`);
+    const data = await resp.json();
+
+    const subtitles = data.subtitles;
+    if (!subtitles || !subtitles.length) throw new Error('No subtitles found');
+
+    // Find English or first
+    const track = subtitles.find(s => s.code === 'en') || subtitles[0];
+
+    const subResp = await fetch(track.url);
+    if (!subResp.ok) throw new Error('Failed to fetch subtitle text');
+
+    const text = await subResp.text();
+    // Piped usually returns WebVTT or JSON. Try VTT parse first.
+    if (text.trim().startsWith('WEBVTT') || text.includes('-->')) {
+        return parseVTT(text);
+    }
+    // If it's JSON (sometimes Piped returns JSON for subs)
+    try {
+        const json = JSON.parse(text);
+        if (Array.isArray(json)) return json.map(i => ({
+            start: i.start,
+            duration: i.duration,
+            text: i.text
+        }));
+    } catch (e) { }
+
+    return parseVTT(text); // Fallback
+}
+
+// --- METHOD: SCRAPING HELPERS ---
 
 async function fetchViaScraping(videoId, proxyBase) {
     const targetUrl = `https://www.youtube.com/watch?v=${videoId}`;
@@ -161,67 +214,31 @@ function parseTranscriptXML(xml) {
     return matches;
 }
 
-// --- METHOD 3: PIPED API ---
+// --- METHOD: INVIDIOUS API ---
 
-async function fetchViaPiped(videoId) {
-    // Piped instances: https://github.com/TeamPiped/Piped/wiki/Instances
-    // Using a reliable public instance
-    const resp = await fetch(`https://pipedapi.kavin.rocks/streams/${videoId}`);
-    if (!resp.ok) throw new Error('Piped API error');
-    const data = await resp.json();
-
-    const subtitles = data.subtitles;
-    if (!subtitles || !subtitles.length) throw new Error('No subtitles in Piped response');
-
-    // Find English or first
-    const track = subtitles.find(s => s.code === 'en') || subtitles[0];
-
-    // Fetch the actual subtitle content (JSON or VTT, usually format is accessible)
-    // Piped returns URL to .vtt or .json
-    const subResp = await fetch(track.url);
-    if (!subResp.ok) throw new Error('Failed to fetch subtitle text from Piped');
-
-    // Piped VTT/JSON handling might vary, but let's assume it returns text we can parse 
-    // actually Piped usually returns WebVTT. Let's try to parse simple VTT.
-    const text = await subResp.text();
-    return parseVTT(text);
-}
-
-// --- METHOD 4: INVIDIOUS API ---
-
-async function fetchViaInvidious(videoId) {
-    // Invidious instances: https://api.invidious.io/
-    const instance = 'https://inv.tux.pizza'; // Popular instance
-    const resp = await fetch(`${instance}/api/v1/captions/${videoId}`);
-    if (!resp.ok) throw new Error('Invidious API error');
+async function fetchViaInvidious(videoId, baseUrl) {
+    const resp = await fetch(`${baseUrl}/api/v1/captions/${videoId}`);
+    if (!resp.ok) throw new Error(`API Status ${resp.status}`);
 
     const data = await resp.json();
-    // Invidious returns list of captions
-    if (!data.captions || !data.captions.length) throw new Error('No captions in Invidious response');
+    if (!data.captions || !data.captions.length) throw new Error('No captions in response');
 
     const track = data.captions.find(c => c.languageCode === 'en') || data.captions[0];
-    const trackUrl = `${instance}${track.url}`;
+    const trackUrl = `${baseUrl}${track.url}`;
 
     const subResp = await fetch(trackUrl);
-    if (!subResp.ok) throw new Error('Failed to fetch caption content from Invidious');
+    if (!subResp.ok) throw new Error('Failed to fetch caption content');
     const text = await subResp.text();
 
-    // Invidious usually returns WebVTT or custom JSON depending on endpoint.
-    // The main endpoint /api/v1/captions/{id} returns list. 
-    // The specific url typically returns VTT.
     return parseVTT(text);
 }
 
 // --- UTILS ---
 
 function parseVTT(vttText) {
-    // Basic WebVTT parser
     const lines = vttText.split('\n');
     const items = [];
-    let currentHash = {};
 
-    // Very simple parser for robustness
-    // Skip header
     let i = 0;
     if (lines[0].startsWith('WEBVTT')) i = 1;
 
@@ -229,10 +246,7 @@ function parseVTT(vttText) {
         const line = lines[i].trim();
         if (!line) continue;
 
-        // Time line: 00:00:00.000 --> 00:00:05.000
         if (line.includes('-->')) {
-            // It's a timestamp
-            // Next lines are text until empty
             let text = '';
             i++;
             while (i < lines.length && lines[i].trim() !== '') {
