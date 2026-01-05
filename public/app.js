@@ -89,9 +89,7 @@ copyBtn.addEventListener('click', () => {
 
 downloadBtn.addEventListener('click', () => {
     const text = transcriptContent.innerText;
-    // Prepend title if available
-    const outputText = currentVideoTitle ? `${currentVideoTitle}\n\n${text}` : text;
-    const blob = new Blob([outputText], { type: 'text/plain' });
+    const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

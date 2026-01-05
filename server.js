@@ -11,6 +11,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 app.use(cors());
 app.use(express.static('public'));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // --- INITIALIZATION ---
 const BIN_DIR = path.join(__dirname, 'bin');
