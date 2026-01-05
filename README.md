@@ -1,7 +1,11 @@
-# YouTube Transcript Grabber (Local)
+# youtube2txt
 
-A robust, locally-hosted tool to extract transcripts from any YouTube video.
-This tool runs on your own machine to bypass YouTube's IP blocks on public proxies, ensuring 100% reliability by using the powerful `yt-dlp` engine under the hood.
+**youtube2txt** (YouTube Transcript Grabber) — A robust, locally-hosted tool to extract clean transcripts from any YouTube video.
+
+This tool runs on your own machine to bypass YouTube's IP blocks on public proxies, ensuring high reliability by using the powerful `yt-dlp` engine under the hood.
+
+> [!IMPORTANT]
+> This tool must be hosted locally on your own machine to avoid IP blocks from YouTube.
 
 ## Features
 
