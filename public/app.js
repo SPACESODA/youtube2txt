@@ -209,7 +209,10 @@ async function handleFetch() {
 
 // --- Caching Logic ---
 const CACHE_PREFIX = 'ts_cache_';
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const CACHE_CONFIG = {
+    TTL_MS: 10 * 60 * 1000 // 10 minutes
+};
+const CACHE_TTL = CACHE_CONFIG.TTL_MS;
 
 function saveToCache(videoId, lang, data) {
     const key = `${CACHE_PREFIX}${videoId}_${lang || 'auto'}`;
