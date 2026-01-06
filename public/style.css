@@ -393,7 +393,9 @@ button:active {
     border-radius: var(--radius);
     text-align: center;
     font-weight: 500;
-    animation: shake 0.4s ease-in-out;
+    font-weight: 500;
+    margin-top: 1rem;
+    width: 100%;
 }
 
 .local-reminder {
