@@ -256,16 +256,9 @@ async function fetchVideoMetadata(videoId) {
                 const rawCaptionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
                 const captionLanguage = pickCaptionLanguage(playerResponse, rawCaptionTracks);
                 const captionTracks = extractCaptionTracks(rawCaptionTracks);
-                if (match && match[1]) {
-                    // Decode HTML entities and normalize the title, then append a canonical " - YouTube" suffix.
-                    let title = match[1]
-                        .replace(/&quot;/g, '"')
-                        .replace(/&#39;/g, "'")
-                        .replace(/&amp;/g, '&')
-                        .replace(/&lt;/g, '<')
-                        .replace(/&gt;/g, '>')
-                        .replace(/\s*-\s*YouTube\s*$/i, '');
-                    finish({ title: `${title} - YouTube`, captionLanguage, captionTracks });
+                const preferredTitle = getPreferredTitle(playerResponse, match);
+                if (preferredTitle) {
+                    finish({ title: `${preferredTitle} - YouTube`, captionLanguage, captionTracks });
                 } else {
                     finish({ title: 'YouTube Video', captionLanguage, captionTracks });
                 }
@@ -346,8 +339,16 @@ function parseVTT(vttText) {
     // Filter out metadata lines if any (like "align:start position:0%")
     // Usually yt-dlp VTT is clean text.
     return items.map(item => ({
-        text: item.text.replace(/<[^>]*>/g, '').trim() // Remove any inner tags
+        text: sanitizeTranscriptText(item.text)
     })).filter(i => i.text); // Remove empty
+}
+
+function sanitizeTranscriptText(text) {
+    if (!text) return '';
+    return text
+        .replace(/<[^>]*>/g, '')
+        .replace(/[<>]/g, '')
+        .trim();
 }
 
 function pickBestSubtitle(files, dir) {
@@ -419,6 +420,23 @@ function extractPlayerResponse(html) {
                 } catch (e) {
                     return null;
                 }
+            }
+        }
+    }
+    return null;
+}
+
+function getPreferredTitle(playerResponse, htmlTitleMatch) {
+    const candidates = [
+        playerResponse?.videoDetails?.title,
+        playerResponse?.microformat?.playerMicroformatRenderer?.title?.simpleText,
+        htmlTitleMatch && htmlTitleMatch[1]
+    ];
+    for (const candidate of candidates) {
+        if (typeof candidate === 'string') {
+            const trimmed = candidate.trim();
+            if (trimmed) {
+                return trimmed.replace(/\s*-\s*YouTube\s*$/i, '');
             }
         }
     }
