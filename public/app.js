@@ -29,6 +29,7 @@ let activeRequestKey = '';
 let currentVideoId = ''; // Global to hold current ID
 let currentVideoTitle = ''; // Store video title for downloads
 let currentSelectedLang = 'auto';
+let currentDefaultLang = '';
 
 // Show reminder if not on localhost and no custom API base is provided
 if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !apiBase) {
@@ -54,6 +55,7 @@ videoUrlInput.addEventListener('input', () => {
         activeRequestKey = '';
         hasUserSelectedLang = false;
         currentSelectedLang = 'auto';
+        currentDefaultLang = '';
         if (selectedLabel) selectedLabel.innerText = 'Auto';
         if (activeController) {
             activeController.abort();
@@ -99,7 +101,12 @@ downloadBtn.addEventListener('click', () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = currentVideoId ? `youtube_${currentVideoId}.txt` : 'transcript.txt';
+    const langCode = currentSelectedLang && currentSelectedLang !== 'auto'
+        ? currentSelectedLang
+        : (currentDefaultLang || 'auto');
+    a.download = currentVideoId
+        ? `youtube.${currentVideoId}.${langCode}.txt`
+        : 'transcript.txt';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -374,6 +381,7 @@ function setLanguageOptions(languages, defaultLang) {
     if (!selectOptions) return;
     
     selectOptions.innerHTML = '';
+    currentDefaultLang = defaultLang || '';
     
     const filteredLanguages = defaultLang
         ? languages.filter((lang) => lang.code !== defaultLang)
