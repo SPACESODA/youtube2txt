@@ -19,10 +19,6 @@ const apiBase = (() => {
     const base = urlParams.get('apiBase');
     return base ? base.replace(/\/+$/, '') : '';
 })();
-const langParam = (() => {
-    const lang = urlParams.get('lang');
-    return lang ? lang.trim() : '';
-})();
 
 let lastLangVideoId = '';
 let isFetching = false;
@@ -116,6 +112,7 @@ async function handleFetch() {
         if (!videoId) throw new Error('Please enter a valid YouTube video URL.');
 
         const langValue = currentSelectedLang;
+        currentVideoId = videoId; // Ensure download filename works even on cache hit.
         requestKey = `${videoId}|${langValue || 'auto'}`;
 
         // CHECK CACHE
@@ -141,8 +138,6 @@ async function handleFetch() {
         isFetching = true;
         activeRequestKey = requestKey;
         activeController = new AbortController();
-
-        currentVideoId = videoId; // Save for download filename
         console.log(`Requesting transcript for ${videoId} from local server...`);
         
         // Start language loading in background
@@ -158,7 +153,7 @@ async function handleFetch() {
 
         if (!response.ok) {
             if (response.status === 404 && !window.location.hostname.includes('localhost')) {
-                throw new Error("Local server not found. Please run 'npm start' on your computer and add this to the URL: ?apiBase=http://localhost:3000");
+                throw new Error("Local server not found. Please run 'npm start' on your computer, then append ?apiBase=http://localhost:3000 to the end of the URL.");
             }
             const errData = await response.json().catch(() => ({}));
             throw new Error(errData.error || `Server Error: ${response.status}`);
@@ -291,7 +286,8 @@ function displayTranscript(transcript) {
     const formattedText = transcript.map(item => item.text).join(' ');
     // Prepend title to the UI content (so it can be copied easily)
     const contentWithTitle = currentVideoTitle ? `${currentVideoTitle}\n\n${formattedText}` : formattedText;
-    transcriptContent.innerText = contentWithTitle;
+    const footer = '\n\n---\n\nTranscript extracted by youtube2txt\nhttps://github.com/SPACESODA/youtube2txt/\n';
+    transcriptContent.innerText = contentWithTitle + footer;
     resultContainer.classList.remove('hidden');
 }
 

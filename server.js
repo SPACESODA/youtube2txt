@@ -8,6 +8,7 @@ const https = require('https');
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
+const METADATA_TIMEOUT_MS = 30000;
 
 app.use(cors());
 app.use(express.static('public'));
@@ -232,9 +233,21 @@ async function fetchTranscriptYtDlp(videoId, languageFilter) {
 async function fetchVideoMetadata(videoId) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     return new Promise((resolve) => {
-        https.get(url, {
+        const fallback = { title: 'YouTube Video', captionLanguage: null, captionTracks: [] };
+        let settled = false;
+        const finish = (payload) => {
+            if (settled) return;
+            settled = true;
+            resolve(payload);
+        };
+
+        const req = https.get(url, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' }
         }, (res) => {
+            if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
+                res.resume();
+                return finish(fallback);
+            }
             let data = '';
             res.on('data', chunk => data += chunk);
             res.on('end', () => {
@@ -252,12 +265,18 @@ async function fetchVideoMetadata(videoId) {
                         .replace(/&lt;/g, '<')
                         .replace(/&gt;/g, '>')
                         .replace(/\s*-\s*YouTube\s*$/i, '');
-                    resolve({ title: title + ' - YouTube', captionLanguage, captionTracks }); // Keep the - YouTube as user requested
+                    finish({ title: title + ' - YouTube', captionLanguage, captionTracks }); // Keep the - YouTube as user requested
                 } else {
-                    resolve({ title: 'YouTube Video', captionLanguage, captionTracks });
+                    finish({ title: 'YouTube Video', captionLanguage, captionTracks });
                 }
             });
-        }).on('error', () => resolve({ title: 'YouTube Video', captionLanguage: null, captionTracks: [] }));
+        });
+
+        req.setTimeout(METADATA_TIMEOUT_MS, () => {
+            req.destroy(new Error('Metadata request timed out.'));
+        });
+
+        req.on('error', () => finish(fallback));
     });
 }
 

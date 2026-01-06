@@ -51,10 +51,5 @@ You can access the UI at `http://localhost:3000`, or use the hosted page which i
 - **GitHub Pages**: [https://spacesoda.github.io/youtube2txt/](https://spacesoda.github.io/youtube2txt/)
 - **Auto-connect to Local Server**: [https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000](https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000)
 
-### 3.3 Language Selection
-By default, the server detects the video's default caption language. To preselect a specific language via URL, add the `lang` parameter:
-
-`https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000&lang=ja`
-
 ### 4. Why Local?
 Most online transcript tools fail because YouTube blocks their shared server IPs ("429 Too Many Requests"). Since this tool runs **locally**, it uses your residential IP address, which YouTube trusts, effectively eliminating these errors.
