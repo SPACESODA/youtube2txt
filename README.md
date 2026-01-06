@@ -47,9 +47,8 @@ If you need to stop or restart the server, simply press `Ctrl + C` in your termi
 - `PORT`: Override the server port (default is 3000).
 
 ### 3.2 Using the latest UI
-While you can access the UI at `http://localhost:3000`, the preferred way is to use the official hosted version. This ensures you always have the latest UI improvements:
-
-- **Official**: [https://spacesoda.github.io/youtube2txt/](https://spacesoda.github.io/youtube2txt/)
+You can access the UI at `http://localhost:3000`, or use the hosted page which includes the latest UI updates:
+- **GitHub Pages**: [https://spacesoda.github.io/youtube2txt/](https://spacesoda.github.io/youtube2txt/)
 - **Auto-connect to Local Server**: [https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000](https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000)
 
 ### 3.3 Language Selection

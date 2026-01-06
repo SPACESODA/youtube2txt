@@ -388,6 +388,7 @@ function setLanguageOptions(languages, defaultLang) {
 function addOption(label, value, isSelected) {
     const div = document.createElement('div');
     div.className = 'select-option' + (isSelected ? ' selected' : '');
+    div.setAttribute('data-umami-event', 'yt | Select Transcript Language');
     div.innerText = label;
     div.addEventListener('click', (e) => {
         e.stopPropagation();
