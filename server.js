@@ -266,6 +266,7 @@ async function fetchVideoMetadata(videoId) {
         });
 
         req.setTimeout(METADATA_TIMEOUT_MS, () => {
+            if (settled) return;
             req.destroy(new Error('Metadata request timed out.'));
         });
 
