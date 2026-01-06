@@ -345,10 +345,23 @@ function parseVTT(vttText) {
 
 function sanitizeTranscriptText(text) {
     if (!text) return '';
-    return text
-        .replace(/<[^>]*>/g, '')
-        .replace(/[<>]/g, '')
-        .trim();
+    let result = '';
+    let inTag = false;
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (char === '<') {
+            inTag = true;
+            continue;
+        }
+        if (char === '>') {
+            inTag = false;
+            continue;
+        }
+        if (!inTag) {
+            result += char;
+        }
+    }
+    return result.trim();
 }
 
 function pickBestSubtitle(files, dir) {
