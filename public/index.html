@@ -2,19 +2,21 @@
 <html lang="en">
 
 <head>
-    <title>youtube2txt — YouTube Transcript Grabber</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>youtube2txt — YouTube Transcript Grabber</title>
+    <meta name="description" content="A robust, locally-hosted tool to extract clean transcripts from any YouTube video. Bypass IP blocks and get text for LLMs instantly.">
     <meta name="robots" content="noindex, nofollow">
     <meta name="googlebot" content="noindex, nofollow">
-    <link rel="icon" href="assets/favicon.ico" sizes="any">
-    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png">
-    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="assets/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="8771ed9f-edd3-4665-bf16-1bc95940af08"></script>
 </head>
 
 <body>
@@ -29,7 +31,7 @@
         <main>
             <div class="input-group">
                 <input type="text" id="videoUrl" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off" autocorrect="off" spellcheck="false">
-                <button id="fetchBtn">
+                <button id="fetchBtn" data-umami-event="yt | Get Transcript Button">
                     <span class="btn-text">Get Transcript</span>
                     <div class="spinner hidden"></div>
                 </button>
@@ -50,11 +52,11 @@
                 <div class="result-header">
                     <h2>Transcript</h2>
                     <div class="actions">
-                        <button id="copyBtn" class="secondary-btn">
+                        <button id="copyBtn" class="secondary-btn" data-umami-event="yt | Copy to Clipboard">
                             <span class="btn-long">Copy to Clipboard</span>
                             <span class="btn-short">Copy</span>
                         </button>
-                        <button id="downloadBtn" class="secondary-btn">Download .txt</button>
+                        <button id="downloadBtn" class="secondary-btn" data-umami-event="yt | Download Text">Download .txt</button>
                     </div>
                 </div>
                 <div id="transcriptContent" class="transcript-content"></div>
