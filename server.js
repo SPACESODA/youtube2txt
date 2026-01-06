@@ -280,15 +280,16 @@ function cleanup(baseName) {
     // Actually baseName is like ".../temp_VIDEOID".
     // yt-dlp appends .en.vtt
     const resolvedBase = path.resolve(baseName);
+    const resolvedRoot = path.resolve(__dirname);
     const expectedPrefix = /^temp_[A-Za-z0-9_-]{11}_[0-9]+_[a-z0-9]{6}$/;
-    const dir = path.dirname(resolvedBase);
+    const dir = resolvedRoot;
     const prefix = path.basename(resolvedBase);
     try {
         // Resolve real (symlink-free) paths for both the root and the directory to clean.
-        const realRoot = fs.realpathSync.native ? fs.realpathSync.native(__dirname) : fs.realpathSync(__dirname);
-        const realDir = fs.realpathSync.native ? fs.realpathSync.native(dir) : fs.realpathSync(dir);
-        const relative = path.relative(realRoot, realDir);
-        // Ensure the directory is within our application root (no path traversal or symlink escape).
+        const realRoot = fs.realpathSync.native ? fs.realpathSync.native(resolvedRoot) : fs.realpathSync(resolvedRoot);
+        const realBaseDir = fs.realpathSync.native ? fs.realpathSync.native(path.dirname(resolvedBase)) : fs.realpathSync(path.dirname(resolvedBase));
+        const relative = path.relative(realRoot, realBaseDir);
+        // Ensure the base directory is within our application root (no path traversal or symlink escape).
         if (relative.startsWith('..') || path.isAbsolute(relative)) {
             console.warn(`Skipping cleanup for unexpected path: "${baseName}"`);
             return;
