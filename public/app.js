@@ -245,17 +245,29 @@ function getCachedTranscript(videoId, lang) {
 
 function cleanupCache() {
     const now = Date.now();
+    // First collect relevant keys to avoid issues when localStorage is mutated during iteration
+    const keysToCheck = [];
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith(CACHE_PREFIX)) {
-            try {
-                const payload = JSON.parse(localStorage.getItem(key));
-                if (now - payload.timestamp > CACHE_TTL) {
-                    localStorage.removeItem(key);
-                }
-            } catch (e) {
+            keysToCheck.push(key);
+        }
+    }
+
+    // Now process the collected keys safely
+    for (const key of keysToCheck) {
+        try {
+            const raw = localStorage.getItem(key);
+            if (!raw) {
+                localStorage.removeItem(key);
+                continue;
+            }
+            const payload = JSON.parse(raw);
+            if (!payload || typeof payload.timestamp !== 'number' || (now - payload.timestamp > CACHE_TTL)) {
                 localStorage.removeItem(key);
             }
+        } catch (e) {
+            localStorage.removeItem(key);
         }
     }
 }
