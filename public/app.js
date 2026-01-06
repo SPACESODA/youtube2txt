@@ -155,7 +155,10 @@ async function handleFetch() {
             if (response.status === 404 && !window.location.hostname.includes('localhost')) {
                 throw new Error("Local server not found. Please run 'npm start' and append ?apiBase=http://localhost:3000 to the end of the URL.");
             }
-            const errData = await response.json().catch(() => ({}));
+            const errData = await response.json().catch((jsonErr) => {
+                console.error('Failed to parse error response as JSON:', jsonErr);
+                return { error: 'Invalid response format', details: jsonErr && jsonErr.message ? jsonErr.message : String(jsonErr) };
+            });
             throw new Error(errData.error || `Server Error: ${response.status}`);
         }
 
