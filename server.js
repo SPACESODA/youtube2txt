@@ -365,13 +365,18 @@ function sanitizeTranscriptText(text) {
             result += char;
             continue;
         }
-        const next = text[i + 1];
-        if (!next || !/[A-Za-z/!]/.test(next)) {
+        const closeIndex = text.indexOf('>', i + 1);
+        if (closeIndex === -1) {
             result += char;
             continue;
         }
-        const closeIndex = text.indexOf('>', i + 1);
-        if (closeIndex === -1) {
+        const tagBody = text.slice(i + 1, closeIndex);
+        if (/^(\d{1,2}:)?\d{2}:\d{2}\.\d{3}$/.test(tagBody)) {
+            i = closeIndex;
+            continue;
+        }
+        const next = text[i + 1];
+        if (!next || !/[A-Za-z/!]/.test(next)) {
             result += char;
             continue;
         }
