@@ -79,7 +79,8 @@ function setupYtDlp() {
     return downloadFile(url, tempPath).then(() => {
         fs.renameSync(tempPath, LOCAL_YTDLP_PATH);
         if (process.platform !== 'win32') {
-            fs.chmodSync(LOCAL_YTDLP_PATH, 0o755);
+            // Restrict executable permissions to the owner to reduce exposure if the binary is compromised.
+            fs.chmodSync(LOCAL_YTDLP_PATH, 0o700);
         }
         YTDLP_PATH = LOCAL_YTDLP_PATH;
         console.log('[Server] yt-dlp downloaded and executable.');
