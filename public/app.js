@@ -82,9 +82,13 @@ document.addEventListener('click', () => {
 
 copyBtn.addEventListener('click', () => {
     const text = transcriptContent.innerText;
+    const originalText = copyBtn.innerText;
     navigator.clipboard.writeText(text).then(() => {
-        const originalText = copyBtn.innerText;
         copyBtn.innerText = 'Copied!';
+        setTimeout(() => copyBtn.innerText = originalText, 2000);
+    }).catch((err) => {
+        console.error('Failed to copy text to clipboard:', err);
+        copyBtn.innerText = 'Copy failed';
         setTimeout(() => copyBtn.innerText = originalText, 2000);
     });
 });
@@ -155,7 +159,13 @@ async function handleFetch() {
             if (response.status === 404 && !window.location.hostname.includes('localhost')) {
                 throw new Error("Local server not found. Please run 'npm start' and append ?apiBase=http://localhost:3000 to the end of the URL.");
             }
-            const errData = await response.json().catch(() => ({}));
+            const errData = await response.json().catch((jsonErr) => {
+                console.error('Failed to parse error response as JSON:', jsonErr);
+                return {
+                    error: `Server Error: ${response.status} (invalid response format)`,
+                    details: jsonErr && jsonErr.message ? jsonErr.message : String(jsonErr)
+                };
+            });
             throw new Error(errData.error || `Server Error: ${response.status}`);
         }
 
@@ -209,7 +219,10 @@ async function handleFetch() {
 
 // --- Caching Logic ---
 const CACHE_PREFIX = 'ts_cache_';
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const CACHE_CONFIG = {
+    TTL_MS: 10 * 60 * 1000 // 10 minutes
+};
+const CACHE_TTL = CACHE_CONFIG.TTL_MS;
 
 function saveToCache(videoId, lang, data) {
     const key = `${CACHE_PREFIX}${videoId}_${lang || 'auto'}`;
@@ -245,17 +258,29 @@ function getCachedTranscript(videoId, lang) {
 
 function cleanupCache() {
     const now = Date.now();
+    // First collect relevant keys to avoid issues when localStorage is mutated during iteration
+    const keysToCheck = [];
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith(CACHE_PREFIX)) {
-            try {
-                const payload = JSON.parse(localStorage.getItem(key));
-                if (now - payload.timestamp > CACHE_TTL) {
-                    localStorage.removeItem(key);
-                }
-            } catch (e) {
+            keysToCheck.push(key);
+        }
+    }
+
+    // Now process the collected keys safely
+    for (const key of keysToCheck) {
+        try {
+            const raw = localStorage.getItem(key);
+            if (!raw) {
+                localStorage.removeItem(key);
+                continue;
+            }
+            const payload = JSON.parse(raw);
+            if (!payload || typeof payload.timestamp !== 'number' || (now - payload.timestamp > CACHE_TTL)) {
                 localStorage.removeItem(key);
             }
+        } catch (e) {
+            localStorage.removeItem(key);
         }
     }
 }
