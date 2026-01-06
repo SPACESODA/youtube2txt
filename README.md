@@ -23,7 +23,8 @@
 - **Python 3**: Required on macOS/Linux for the underlying extraction engine. Not required on Windows.
 
 ### 2. Installation
-Run this command once to install dependencies:
+Download this repo (or clone it), then `cd` into the folder.  
+Run this command to install dependencies:
 ```bash
 npm install
 ```
@@ -41,13 +42,13 @@ This will:
 **To Restart:**
 If you need to stop or restart the server, simply press `Ctrl + C` in your terminal to stop it, then run `npm start` again.
 
-### 3.1 Optional Environment Variables
+#### Optional Environment Variables
 - `YTDLP_PATH`: Use an existing `yt-dlp` binary from a custom path.
 - `YTDLP_COOKIES`: Path to a cookies file for YouTube (helps with rate limits).
 - `PORT`: Override the server port (default is 3000).
 
-### 3.2 Using the latest UI
-You can access the UI at `http://localhost:3000`, or use the hosted page which includes the latest UI updates:
+#### Using the latest UI
+Access the tool at `http://localhost:3000`, or use the hosted page which includes the latest UI updates:
 - **GitHub Pages**: [https://spacesoda.github.io/youtube2txt/](https://spacesoda.github.io/youtube2txt/)
 - **Auto-connect to Local Server**: [https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000](https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000)
 
