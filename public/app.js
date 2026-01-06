@@ -161,7 +161,10 @@ async function handleFetch() {
             }
             const errData = await response.json().catch((jsonErr) => {
                 console.error('Failed to parse error response as JSON:', jsonErr);
-                return { error: 'Invalid response format', details: jsonErr && jsonErr.message ? jsonErr.message : String(jsonErr) };
+                return {
+                    error: `Server Error: ${response.status} (invalid response format)`,
+                    details: jsonErr && jsonErr.message ? jsonErr.message : String(jsonErr)
+                };
             });
             throw new Error(errData.error || `Server Error: ${response.status}`);
         }
