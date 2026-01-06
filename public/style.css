@@ -396,6 +396,35 @@ button:active {
     animation: shake 0.4s ease-in-out;
 }
 
+.local-reminder {
+    background: rgba(194, 65, 12, 0.05);
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    padding: 1.25rem;
+    border-radius: var(--radius);
+    text-align: center;
+    margin-top: 1.5rem;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.local-reminder p:first-child {
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+.local-reminder a {
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.local-reminder a:hover {
+    color: var(--primary-hover);
+}
+
 .hidden {
     display: none !important;
 }

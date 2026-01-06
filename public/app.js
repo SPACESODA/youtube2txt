@@ -34,6 +34,12 @@ let currentVideoId = ''; // Global to hold current ID
 let currentVideoTitle = ''; // Store video title for downloads
 let currentSelectedLang = 'auto';
 
+// Show reminder if not on localhost
+if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    const localReminder = document.getElementById('localReminder');
+    if (localReminder) localReminder.classList.remove('hidden');
+}
+
 fetchBtn.addEventListener('click', handleFetch);
 videoUrlInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') handleFetch();
