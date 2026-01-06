@@ -35,7 +35,7 @@ function setupPython() {
                 fs.symlinkSync(python3Path, symlinkPath);
                 console.log('[Server] Created python symlink.');
             } catch (e) {
-                console.error(`[Server] Failed to setup python symlink: ${e.message}. yt-dlp might fail if 'python' is not in PATH.`);
+                console.error(`[Server] Failed to setup python symlink: ${e.message}. yt-dlp might fail if 'python' is not in PATH. Consider installing Python, adding it to your PATH, and ensuring this process has permission to create symlinks.`);
             }
         } else {
             console.error("[Server] Failed to setup python symlink: python not found in PATH. yt-dlp might fail if 'python' is not in PATH.");
