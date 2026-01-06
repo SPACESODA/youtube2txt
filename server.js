@@ -284,8 +284,19 @@ function cleanup(baseName) {
     // baseName has full path but no extension? 
     // Actually baseName is like ".../temp_VIDEOID".
     // yt-dlp appends .en.vtt
-    const dir = path.dirname(baseName);
-    const prefix = path.basename(baseName);
+    const resolvedBase = path.resolve(baseName);
+    const resolvedRoot = path.resolve(__dirname);
+    const expectedPrefix = /^temp_[A-Za-z0-9_-]{11}_[0-9]+_[a-z0-9]{6}$/;
+    if (!resolvedBase.startsWith(resolvedRoot + path.sep)) {
+        console.warn(`Skipping cleanup for unexpected path: "${baseName}"`);
+        return;
+    }
+    const dir = path.dirname(resolvedBase);
+    const prefix = path.basename(resolvedBase);
+    if (!expectedPrefix.test(prefix)) {
+        console.warn(`Skipping cleanup for unexpected temp file prefix: "${prefix}"`);
+        return;
+    }
     try {
         const files = fs.readdirSync(dir).filter(f => f.startsWith(prefix));
         files.forEach(f => fs.unlinkSync(path.join(dir, f)));
