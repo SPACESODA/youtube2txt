@@ -289,7 +289,7 @@ function cleanup(baseName) {
         const realDir = fs.realpathSync.native ? fs.realpathSync.native(dir) : fs.realpathSync(dir);
         const relative = path.relative(realRoot, realDir);
         // Ensure the directory is within our application root (no path traversal or symlink escape).
-        if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+        if (relative.startsWith('..') || path.isAbsolute(relative)) {
             console.warn(`Skipping cleanup for unexpected path: "${baseName}"`);
             return;
         }
