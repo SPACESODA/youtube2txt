@@ -346,20 +346,23 @@ function parseVTT(vttText) {
 function sanitizeTranscriptText(text) {
     if (!text) return '';
     let result = '';
-    let inTag = false;
     for (let i = 0; i < text.length; i++) {
         const char = text[i];
-        if (char === '<') {
-            inTag = true;
-            continue;
-        }
-        if (char === '>') {
-            inTag = false;
-            continue;
-        }
-        if (!inTag) {
+        if (char !== '<') {
             result += char;
+            continue;
         }
+        const next = text[i + 1];
+        if (!next || !/[A-Za-z/!]/.test(next)) {
+            result += char;
+            continue;
+        }
+        const closeIndex = text.indexOf('>', i + 1);
+        if (closeIndex === -1) {
+            result += char;
+            continue;
+        }
+        i = closeIndex;
     }
     return result.trim();
 }
@@ -440,10 +443,13 @@ function extractPlayerResponse(html) {
 }
 
 function getPreferredTitle(playerResponse, htmlTitleMatch) {
+    const fallbackTitle = htmlTitleMatch && htmlTitleMatch[1]
+        ? decodeHtmlEntities(htmlTitleMatch[1])
+        : null;
     const candidates = [
         playerResponse?.videoDetails?.title,
         playerResponse?.microformat?.playerMicroformatRenderer?.title?.simpleText,
-        htmlTitleMatch && htmlTitleMatch[1]
+        fallbackTitle
     ];
     for (const candidate of candidates) {
         if (typeof candidate === 'string') {
@@ -454,6 +460,51 @@ function getPreferredTitle(playerResponse, htmlTitleMatch) {
         }
     }
     return null;
+}
+
+function decodeHtmlEntities(text) {
+    if (!text || !text.includes('&')) return text || '';
+    let result = '';
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (char !== '&') {
+            result += char;
+            continue;
+        }
+        const semi = text.indexOf(';', i + 1);
+        if (semi === -1 || semi - i > 10) {
+            result += char;
+            continue;
+        }
+        const entity = text.slice(i + 1, semi);
+        switch (entity) {
+            case 'amp':
+                result += '&';
+                i = semi;
+                break;
+            case 'quot':
+                result += '"';
+                i = semi;
+                break;
+            case '#39':
+            case '#x27':
+                result += "'";
+                i = semi;
+                break;
+            case 'lt':
+                result += '<';
+                i = semi;
+                break;
+            case 'gt':
+                result += '>';
+                i = semi;
+                break;
+            default:
+                result += char;
+                break;
+        }
+    }
+    return result;
 }
 
 function pickCaptionLanguage(playerResponse, captionTracks) {
