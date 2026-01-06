@@ -82,9 +82,13 @@ document.addEventListener('click', () => {
 
 copyBtn.addEventListener('click', () => {
     const text = transcriptContent.innerText;
+    const originalText = copyBtn.innerText;
     navigator.clipboard.writeText(text).then(() => {
-        const originalText = copyBtn.innerText;
         copyBtn.innerText = 'Copied!';
+        setTimeout(() => copyBtn.innerText = originalText, 2000);
+    }).catch((err) => {
+        console.error('Failed to copy text to clipboard:', err);
+        copyBtn.innerText = 'Copy failed';
         setTimeout(() => copyBtn.innerText = originalText, 2000);
     });
 });
