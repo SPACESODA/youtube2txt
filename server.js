@@ -289,7 +289,10 @@ function cleanup(baseName) {
     try {
         const files = fs.readdirSync(dir).filter(f => f.startsWith(prefix));
         files.forEach(f => fs.unlinkSync(path.join(dir, f)));
-    } catch (e) { }
+    } catch (e) {
+        // Best-effort cleanup: failures are non-fatal but logged for diagnostics.
+        console.warn(`Failed to clean up temporary files for baseName "${baseName}":`, e);
+    }
 }
 
 function parseVTT(vttText) {
