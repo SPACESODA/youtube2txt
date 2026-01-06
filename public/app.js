@@ -153,7 +153,7 @@ async function handleFetch() {
 
         if (!response.ok) {
             if (response.status === 404 && !window.location.hostname.includes('localhost')) {
-                throw new Error("Local server not found. Please run 'npm start' on your computer, then append ?apiBase=http://localhost:3000 to the end of the URL.");
+                throw new Error("Local server not found. Please run 'npm start' and append ?apiBase=http://localhost:3000 to the end of the URL.");
             }
             const errData = await response.json().catch(() => ({}));
             throw new Error(errData.error || `Server Error: ${response.status}`);
