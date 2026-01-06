@@ -525,7 +525,11 @@ function downloadFile(url, destPath) {
                 res.pipe(file);
                 file.on('finish', () => file.close(resolve));
                 file.on('error', (err) => {
-                    try { fs.unlinkSync(destPath); } catch (e) { }
+                    try {
+                        fs.unlinkSync(destPath);
+                    } catch (e) {
+                        console.error('Failed to delete temporary download file:', destPath, e);
+                    }
                     reject(err);
                 });
             });
