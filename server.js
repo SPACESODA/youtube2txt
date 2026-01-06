@@ -257,15 +257,15 @@ async function fetchVideoMetadata(videoId) {
                 const captionLanguage = pickCaptionLanguage(playerResponse, rawCaptionTracks);
                 const captionTracks = extractCaptionTracks(rawCaptionTracks);
                 if (match && match[1]) {
-                    // Clean up title (YouTube appends "- YouTube" and might have entities)
+                    // Decode HTML entities and normalize the title, then append a canonical " - YouTube" suffix
                     let title = match[1]
                         .replace(/&quot;/g, '"')
                         .replace(/&#39;/g, "'")
                         .replace(/&amp;/g, '&')
                         .replace(/&lt;/g, '<')
-                        .replace(/&gt;/g, '>')
-                        .replace(/\s*-\s*YouTube\s*$/i, '');
-                    finish({ title: title + ' - YouTube', captionLanguage, captionTracks }); // Keep the - YouTube as user requested
+                        .replace(/&gt;/g, '>');
+
+                    finish({ title: title + ' - YouTube', captionLanguage, captionTracks });
                 } else {
                     finish({ title: 'YouTube Video', captionLanguage, captionTracks });
                 }
