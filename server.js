@@ -358,24 +358,25 @@ function parseVTT(vttText) {
 
 function sanitizeTranscriptText(text) {
     if (!text) return '';
+    const decoded = decodeHtmlEntities(text);
     let result = '';
-    for (let i = 0; i < text.length; i++) {
-        const char = text[i];
+    for (let i = 0; i < decoded.length; i++) {
+        const char = decoded[i];
         if (char !== '<') {
             result += char;
             continue;
         }
-        const closeIndex = text.indexOf('>', i + 1);
+        const closeIndex = decoded.indexOf('>', i + 1);
         if (closeIndex === -1) {
             result += char;
             continue;
         }
-        const tagBody = text.slice(i + 1, closeIndex);
+        const tagBody = decoded.slice(i + 1, closeIndex);
         if (/^(\d{1,2}:)?\d{2}:\d{2}\.\d{3}$/.test(tagBody)) {
             i = closeIndex;
             continue;
         }
-        const next = text[i + 1];
+        const next = decoded[i + 1];
         if (!next || !/[A-Za-z/!]/.test(next)) {
             result += char;
             continue;
