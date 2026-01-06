@@ -34,8 +34,8 @@ let currentVideoId = ''; // Global to hold current ID
 let currentVideoTitle = ''; // Store video title for downloads
 let currentSelectedLang = 'auto';
 
-// Show reminder if not on localhost
-if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+// Show reminder if not on localhost and no custom API base is provided
+if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !apiBase) {
     const localReminder = document.getElementById('localReminder');
     if (localReminder) localReminder.classList.remove('hidden');
 }
