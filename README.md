@@ -12,6 +12,10 @@
 - **Instant Copy/Download**: One-click copy to clipboard or download as `.txt` for LLM use.
 - **Local Privacy**: All requests go through your own internet connection; no external API servers.
 
+## What is yt-dlp?
+
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) is a powerful, open-source command-line tool used to extract information and download media from YouTube and thousands of other sites. In this project, it is used as the core engine to fetch high-quality, timed transcripts while handling YouTube's complex anti-bot measures better than standard web crawlers.
+
 ## How to Use
 
 ### 1. Prerequisites
@@ -42,16 +46,16 @@ If you need to stop or restart the server, simply press `Ctrl + C` in your termi
 - `YTDLP_COOKIES`: Path to a cookies file for YouTube (helps with rate limits).
 - `PORT`: Override the server port (default is 3000).
 
-### 3.2 Hosting the UI Separately
-If you host `public/index.html` somewhere else, tell the UI where your server is:
-`https://your-ui-host/?apiBase=http://YOUR_SERVER_IP:3000`
-If the UI is served by the same server, no parameters are needed:
-`http://YOUR_SERVER_IP:3000`
+### 3.2 Using the latest UI
+While you can access the UI at `http://localhost:3000`, the preferred way is to use the official hosted version. This ensures you always have the latest UI improvements:
+
+- **Official**: [https://spacesoda.github.io/youtube2txt/](https://spacesoda.github.io/youtube2txt/)
+- **Auto-connect to Local Server**: [https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000](https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000)
 
 ### 3.3 Language Selection
-By default the server detects the video's default caption language and uses that. The UI shows available language codes in a dropdown. To preselect a language, add `lang`:
-`https://your-ui-host/?apiBase=http://YOUR_SERVER_IP:3000&lang=es`
+By default, the server detects the video's default caption language. To preselect a specific language via URL, add the `lang` parameter:
+
+`https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000&lang=ja`
 
 ### 4. Why Local?
-Most online transcript tools fail because YouTube blocks their shared server IPs ("429 Too Many Requests").
-Since this tool runs **locally**, it uses your residential IP address, which YouTube trusts, effectively eliminating these errors.
+Most online transcript tools fail because YouTube blocks their shared server IPs ("429 Too Many Requests"). Since this tool runs **locally**, it uses your residential IP address, which YouTube trusts, effectively eliminating these errors.
