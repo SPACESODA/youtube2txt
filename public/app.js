@@ -86,6 +86,23 @@ function showLocalReminder(variant = 'local') {
     localReminderAction.innerHTML = localReminderDefaults.actionHtml;
 }
 
+async function probeLocalServer() {
+    if (!apiBaseIsLocal || !hasApiBaseValue) return;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    try {
+        await fetch(`${apiBase}/`, { signal: controller.signal });
+    } catch (e) {
+        showLocalReminder('local');
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+if (window.location.hostname === 'spacesoda.github.io') {
+    probeLocalServer();
+}
+
 fetchBtn.addEventListener('click', handleFetch);
 videoUrlInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') handleFetch();
