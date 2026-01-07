@@ -1,0 +1,7 @@
+services:
+  youtube2txt:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      HOST: 0.0.0.0
