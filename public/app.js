@@ -8,6 +8,9 @@ const resultContainer = document.getElementById('resultContainer');
 const transcriptContent = document.getElementById('transcriptContent');
 const errorMsg = document.getElementById('errorMsg');
 const localReminder = document.getElementById('localReminder');
+const localReminderTitle = document.getElementById('localReminderTitle');
+const localReminderMessage = document.getElementById('localReminderMessage');
+const localReminderAction = document.getElementById('localReminderAction');
 const copyBtn = document.getElementById('copyBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 
@@ -18,15 +21,16 @@ const selectOptions = document.getElementById('selectOptions');
 const langSpinner = document.getElementById('langSpinner');
 
 const urlParams = new URLSearchParams(window.location.search);
+const rawApiBase = urlParams.get('apiBase');
 const apiBase = (() => {
-    const base = urlParams.get('apiBase');
-    return base ? base.replace(/\/+$/, '') : '';
+    return rawApiBase ? rawApiBase.replace(/\/+$/, '') : '';
 })();
+const hasApiBaseValue = typeof rawApiBase === 'string' && rawApiBase.trim() !== '';
 
 if (
     window.location.hostname === 'spacesoda.github.io' &&
     (window.location.pathname === '/youtube2txt/' || window.location.pathname === '/youtube2txt') &&
-    !urlParams.has('apiBase')
+    !hasApiBaseValue
 ) {
     const redirectUrl = new URL(window.location.href);
     redirectUrl.searchParams.set('apiBase', 'http://localhost:3000');
@@ -43,14 +47,43 @@ let currentVideoId = ''; // Global to hold current ID
 let currentVideoTitle = ''; // Store video title for downloads
 let currentSelectedLang = 'auto';
 let currentDefaultLang = '';
+const localReminderDefaults = {
+    title: localReminderTitle ? localReminderTitle.innerText : '',
+    message: localReminderMessage ? localReminderMessage.innerText : '',
+    actionHtml: localReminderAction ? localReminderAction.innerHTML : ''
+};
 
-// Show reminder if not on localhost and no custom API base is provided
-if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !apiBase) {
+function isLocalApiBase(value) {
+    if (!value) return true;
+    try {
+        const url = new URL(value, window.location.origin);
+        return url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    } catch (e) {
+        return true;
+    }
+}
+
+const apiBaseIsLocal = isLocalApiBase(apiBase);
+
+// Show reminder on GitHub Pages when no API base is provided.
+if (window.location.hostname === 'spacesoda.github.io' && !hasApiBaseValue) {
     if (localReminder) localReminder.classList.remove('hidden');
 }
 
-function showLocalReminder() {
+function showLocalReminder(variant = 'local') {
     if (localReminder) localReminder.classList.remove('hidden');
+    if (!localReminderTitle || !localReminderMessage || !localReminderAction) return;
+    if (variant === 'remote') {
+        localReminderTitle.innerText = 'Server Not Reachable';
+        localReminderMessage.innerText = apiBase
+            ? `Server not reachable at ${apiBase}. Check that it is running and accessible.`
+            : 'Server not reachable. Check that it is running and accessible.';
+        localReminderAction.innerHTML = localReminderDefaults.actionHtml;
+        return;
+    }
+    localReminderTitle.innerText = localReminderDefaults.title;
+    localReminderMessage.innerText = localReminderDefaults.message;
+    localReminderAction.innerHTML = localReminderDefaults.actionHtml;
 }
 
 fetchBtn.addEventListener('click', handleFetch);
@@ -180,8 +213,14 @@ async function handleFetch() {
 
         if (!response.ok) {
             if (response.status === 404 && !window.location.hostname.includes('localhost')) {
-                showLocalReminder();
-                throw new Error("Local server not found. Please run 'npm start' and append ?apiBase=http://localhost:3000 to the end of the URL.");
+                const reminderVariant = apiBaseIsLocal ? 'local' : 'remote';
+                showLocalReminder(reminderVariant);
+                if (apiBaseIsLocal) {
+                    throw new Error("Local server not found. Please run 'npm start' and append ?apiBase=http://localhost:3000 to the end of the URL.");
+                }
+                throw new Error(apiBase
+                    ? `Server not found at ${apiBase}. Check that it is running and accessible.`
+                    : 'Server not found. Check that it is running and accessible.');
             }
             const errData = await response.json().catch((jsonErr) => {
                 console.error('Failed to parse error response as JSON:', jsonErr);
@@ -226,10 +265,11 @@ async function handleFetch() {
         // Friendly error for connection refused (server not running)
         const isNetworkError = err.name === 'TypeError' && (msg === 'Failed to fetch' || msg.includes('NetworkError'));
         if (isNetworkError) {
-            showLocalReminder();
-            msg = apiBase
-                ? `Server not reachable at ${apiBase}. Check that it is running and accessible.`
-                : "Local server not connected. Please run 'npm start'.";
+            const reminderVariant = apiBaseIsLocal ? 'local' : 'remote';
+            showLocalReminder(reminderVariant);
+            msg = apiBaseIsLocal
+                ? (apiBase ? `Server not reachable at ${apiBase}. Check that it is running and accessible.` : "Local server not connected. Please run 'npm start'.")
+                : (apiBase ? `Server not reachable at ${apiBase}. Check that it is running and accessible.` : 'Server not reachable. Check that it is running and accessible.');
         }
 
         showError(msg);
