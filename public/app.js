@@ -107,7 +107,7 @@ downloadBtn.addEventListener('click', () => {
         ? currentSelectedLang
         : (currentDefaultLang || 'auto');
     a.download = currentVideoId
-        ? `youtube.${currentVideoId}.${langCode}.txt`
+        ? `youtube-${currentVideoId}.${langCode}.txt`
         : 'transcript.txt';
     document.body.appendChild(a);
     a.click();
@@ -319,7 +319,11 @@ function extractVideoId(url) {
 function displayTranscript(transcript) {
     const formattedText = transcript.map(item => item.text).join(' ');
     // Prepend title to the UI content (so it can be copied easily)
-    const contentWithTitle = currentVideoTitle ? `${currentVideoTitle}\n\n${formattedText}` : formattedText;
+    const headerLines = [];
+    if (currentVideoTitle) headerLines.push(currentVideoTitle);
+    if (currentVideoId) headerLines.push(`https://www.youtube.com/watch?v=${currentVideoId}`);
+    const headerText = headerLines.join('\n');
+    const contentWithTitle = headerText ? `${headerText}\n\n${formattedText}` : formattedText;
     const footer = '\n\n---\n\nTranscript extracted by youtube2txt\nhttps://github.com/SPACESODA/youtube2txt/\n';
     transcriptContent.innerText = contentWithTitle + footer;
     resultContainer.classList.remove('hidden');
