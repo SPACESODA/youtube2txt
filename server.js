@@ -234,13 +234,22 @@ async function fetchTranscriptYtDlp(videoId, languageFilter) {
 
 async function fetchVideoMetadata(videoId) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const fallback = { title: 'YouTube Video', captionLanguage: null, captionTracks: [] };
         let settled = false;
-        const finish = (payload) => {
+        const finish = ({ ok, payload }) => {
             if (settled) return;
             settled = true;
-            resolve(payload);
+            if (ok) {
+                resolve(payload);
+            } else {
+                // Ensure we always reject with an Error instance
+                if (payload instanceof Error) {
+                    reject(payload);
+                } else {
+                    reject(new Error(String(payload)));
+                }
+            }
         };
 
         const req = https.get(url, {
@@ -248,31 +257,44 @@ async function fetchVideoMetadata(videoId) {
         }, (res) => {
             if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
                 res.resume();
-                return finish(fallback);
+                return finish({
+                    ok: false,
+                    payload: new Error(`Metadata request failed with status code ${res.statusCode}`)
+                });
             }
             let data = '';
             res.on('data', chunk => data += chunk);
             res.on('end', () => {
-                const match = data.match(/<title>(.*?)<\/title>/i);
-                const playerResponse = extractPlayerResponse(data);
-                const rawCaptionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-                const captionLanguage = pickCaptionLanguage(playerResponse, rawCaptionTracks);
-                const captionTracks = extractCaptionTracks(rawCaptionTracks);
-                const preferredTitle = getPreferredTitle(playerResponse, match);
-                if (preferredTitle) {
-                    finish({ title: `${preferredTitle} - YouTube`, captionLanguage, captionTracks });
-                } else {
-                    finish({ title: 'YouTube Video', captionLanguage, captionTracks });
+                try {
+                    const match = data.match(/<title>(.*?)<\/title>/i);
+                    const playerResponse = extractPlayerResponse(data);
+                    const rawCaptionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+                    const captionLanguage = pickCaptionLanguage(playerResponse, rawCaptionTracks);
+                    const captionTracks = extractCaptionTracks(rawCaptionTracks);
+                    const preferredTitle = getPreferredTitle(playerResponse, match);
+                    if (preferredTitle) {
+                        finish({ ok: true, payload: { title: `${preferredTitle} - YouTube`, captionLanguage, captionTracks } });
+                    } else {
+                        // Parsing succeeded but no preferred title: still treat as success, use fallback title.
+                        finish({ ok: true, payload: { title: fallback.title, captionLanguage, captionTracks } });
+                    }
+                } catch (e) {
+                    // Parsing error: treat as request-level failure.
+                    finish({ ok: false, payload: e instanceof Error ? e : new Error('Failed to parse video metadata') });
                 }
             });
+            // Destroy the request and reject due to timeout.
         });
+            finish({ ok: false, payload: new Error('Metadata request timed out.') });
 
         req.setTimeout(METADATA_TIMEOUT_MS, () => {
             if (settled) return;
             req.destroy(new Error('Metadata request timed out.'));
         });
 
-        req.on('error', () => finish(fallback));
+        req.on('error', (err) => {
+            finish({ ok: false, payload: err || new Error('Metadata request failed.') });
+        });
     });
 }
 
