@@ -367,18 +367,28 @@ function cleanupCache() {
     }
 }
 
+const YOUTUBE_VIDEO_ID_LENGTH = 11;
+const YOUTUBE_VIDEO_ID_CHAR_CLASS = 'a-zA-Z0-9_-';
+const YOUTUBE_VIDEO_ID_PATTERN = new RegExp(
+    `^[${YOUTUBE_VIDEO_ID_CHAR_CLASS}]{${YOUTUBE_VIDEO_ID_LENGTH}}$`
+);
+
 function extractVideoId(url) {
     url = url.trim();
 
     // 1. Handle raw 11-character video IDs
-    if (/^[a-zA-Z0-9_-]{11}$/.test(url)) {
+    if (YOUTUBE_VIDEO_ID_PATTERN.test(url)) {
         return url;
     }
 
     // 2. Patterns for various YouTube URL formats
     const patterns = [
-        /(?:v=|\/)([a-zA-Z0-9_-]{11})(?:&|\?|$| )/, // watch?v=ID or /v/ID or shorts/ID
-        /youtu\.be\/([a-zA-Z0-9_-]{11})(?:\?|&|$| )/  // youtu.be/ID
+        new RegExp(
+            `(?:v=|/)([${YOUTUBE_VIDEO_ID_CHAR_CLASS}]{${YOUTUBE_VIDEO_ID_LENGTH}})(?:&|\\?|$| )`
+        ), // watch?v=ID or /v/ID or shorts/ID
+        new RegExp(
+            `youtu\\.be/([${YOUTUBE_VIDEO_ID_CHAR_CLASS}]{${YOUTUBE_VIDEO_ID_LENGTH}})(?:\\?|&|$| )`
+        )  // youtu.be/ID
     ];
 
     for (const pattern of patterns) {
