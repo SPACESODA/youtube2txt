@@ -1,4 +1,5 @@
-// Front-end logic for youtube2txt: UI wiring, transcript fetch, caching, and export actions.
+// Frontend logic for youtube2txt: UI wiring, transcript fetch, caching, and export actions.
+
 const videoUrlInput = document.getElementById('videoUrl');
 const fetchBtn = document.getElementById('fetchBtn');
 const btnText = fetchBtn.querySelector('.btn-text');
