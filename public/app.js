@@ -1,3 +1,4 @@
+// Front-end logic for youtube2txt: UI wiring, transcript fetch, caching, and export actions.
 const videoUrlInput = document.getElementById('videoUrl');
 const fetchBtn = document.getElementById('fetchBtn');
 const btnText = fetchBtn.querySelector('.btn-text');
@@ -156,7 +157,7 @@ async function handleFetch() {
             loadLanguages(videoId);
         }
 
-        // DIRECT LOCAL SERVER FETCH
+        // Transcript fetch from API (local by default)
         const langQuery = langValue && langValue !== 'auto' ? `&lang=${encodeURIComponent(langValue)}` : '';
         const response = await fetch(`${apiBase}/transcript?videoId=${encodeURIComponent(videoId)}${langQuery}`, {
             signal: activeController.signal

@@ -1,3 +1,4 @@
+// Backend for youtube2txt: serves the UI and exposes transcript/language APIs via yt-dlp.
 const express = require('express');
 const cors = require('cors');
 const { spawn } = require('child_process');
@@ -160,7 +161,7 @@ async function fetchTranscriptYtDlp(videoId, languageFilter) {
     // --skip-download: Don't download video
     // --write-subs: Write manual subs
     // --write-auto-subs: Write auto-generated subs
-    // --sub-lang en: Prefer English
+    // --sub-lang <codes>: Prefer requested language(s)
     // --output: Output filename template
     // --sub-format vtt: Ensure VTT format for easy parsing
 
