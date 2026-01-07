@@ -239,10 +239,27 @@ async function handleFetch() {
                     ? `Server not found at ${apiBase}. Check that it is running and accessible.`
                     : 'Server not found. Check that it is running and accessible.');
             }
-            const errData = await response.json().catch((jsonErr) => {
+            const errData = await response.json().catch(async (jsonErr) => {
                 console.error('Failed to parse error response as JSON:', jsonErr);
+                let rawBody = '';
+                try {
+                    rawBody = await response.text();
+                } catch (textErr) {
+                    console.error('Failed to read error response as text:', textErr);
+                }
+
+                const baseMessage = `Server Error: ${response.status}`;
+                let errorMessage = baseMessage;
+
+                if (rawBody && rawBody.trim()) {
+                    const firstLine = rawBody.trim().split('\n')[0];
+                    errorMessage = `${baseMessage} - ${firstLine}`;
+                } else {
+                    errorMessage = `${baseMessage} (non-JSON error response)`;
+                }
+
                 return {
-                    error: `Server Error: ${response.status} (invalid response format)`,
+                    error: errorMessage,
                     details: jsonErr && jsonErr.message ? jsonErr.message : String(jsonErr)
                 };
             });
