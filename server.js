@@ -105,9 +105,17 @@ app.get('/transcript', async (req, res) => {
     }
 
     console.log(`[Server] Fetching transcript for: ${videoId}`);
-    
+
     try {
-        await ytdlpReady;
+        // Ensure yt-dlp is initialized before proceeding. If initialization fails,
+        // return a clear, user-friendly error instead of exposing internal details.
+        try {
+            await ytdlpReady;
+        } catch (initError) {
+            console.error('[Server] yt-dlp initialization error:', initError);
+            return res.status(503).json({ error: 'Transcript service is not available. Please try again later.' });
+        }
+
         const metadata = await fetchVideoMetadata(videoId);
         const languageFilter = lang && lang.toLowerCase() !== 'auto' ? lang : null;
         const preferredLanguage = languageFilter || metadata.captionLanguage || 'en,en-US,en-GB';
@@ -118,8 +126,9 @@ app.get('/transcript', async (req, res) => {
         const title = metadata.title;
         res.json({ title, segments });
     } catch (error) {
-        console.error('[Server] Error:', error.message);
-        res.status(500).json({ error: error.message });
+        const message = (error && error.message) ? error.message : 'Internal server error';
+        console.error('[Server] Error:', message);
+        res.status(500).json({ error: message });
     }
 });
 
