@@ -149,6 +149,22 @@ app.listen(PORT, HOST, () => {
 
 // --- HELPER FUNCTIONS ---
 
+function resolveSafeCookiesPath(envPath) {
+    if (!envPath) {
+        return null;
+    }
+    // Restrict cookies file to a trusted directory under this server.
+    const baseDir = path.join(__dirname, 'cookies');
+    const resolved = path.resolve(envPath);
+    const relative = path.relative(baseDir, resolved);
+    // Disallow paths that escape the base directory.
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        console.warn(`[Server] Ignoring YTDLP_COOKIES path outside allowed directory: ${envPath}`);
+        return null;
+    }
+    return resolved;
+}
+
 async function fetchTranscriptYtDlp(videoId, languageFilter) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     const outputBase = path.join(
@@ -169,7 +185,7 @@ async function fetchTranscriptYtDlp(videoId, languageFilter) {
         throw new Error('yt-dlp is not available.');
     }
     const jsRuntime = `node:${process.execPath}`;
-    const cookiesPath = process.env.YTDLP_COOKIES ? path.resolve(process.env.YTDLP_COOKIES) : null;
+    const cookiesPath = resolveSafeCookiesPath(process.env.YTDLP_COOKIES);
     const selectedLanguage = languageFilter;
 
     const args = [
