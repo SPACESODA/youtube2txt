@@ -7,6 +7,7 @@ const spinner = fetchBtn.querySelector('.spinner');
 const resultContainer = document.getElementById('resultContainer');
 const transcriptContent = document.getElementById('transcriptContent');
 const errorMsg = document.getElementById('errorMsg');
+const localReminder = document.getElementById('localReminder');
 const copyBtn = document.getElementById('copyBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 
@@ -22,6 +23,16 @@ const apiBase = (() => {
     return base ? base.replace(/\/+$/, '') : '';
 })();
 
+if (
+    window.location.hostname === 'spacesoda.github.io' &&
+    (window.location.pathname === '/youtube2txt/' || window.location.pathname === '/youtube2txt') &&
+    !urlParams.has('apiBase')
+) {
+    const redirectUrl = new URL(window.location.href);
+    redirectUrl.searchParams.set('apiBase', 'http://localhost:3000');
+    window.location.replace(redirectUrl.toString());
+}
+
 let lastLangVideoId = '';
 let isFetching = false;
 let lastFetchedKey = '';
@@ -35,7 +46,10 @@ let currentDefaultLang = '';
 
 // Show reminder if not on localhost and no custom API base is provided
 if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !apiBase) {
-    const localReminder = document.getElementById('localReminder');
+    if (localReminder) localReminder.classList.remove('hidden');
+}
+
+function showLocalReminder() {
     if (localReminder) localReminder.classList.remove('hidden');
 }
 
@@ -166,6 +180,7 @@ async function handleFetch() {
 
         if (!response.ok) {
             if (response.status === 404 && !window.location.hostname.includes('localhost')) {
+                showLocalReminder();
                 throw new Error("Local server not found. Please run 'npm start' and append ?apiBase=http://localhost:3000 to the end of the URL.");
             }
             const errData = await response.json().catch((jsonErr) => {
@@ -211,6 +226,7 @@ async function handleFetch() {
         // Friendly error for connection refused (server not running)
         const isNetworkError = err.name === 'TypeError' && (msg === 'Failed to fetch' || msg.includes('NetworkError'));
         if (isNetworkError) {
+            showLocalReminder();
             msg = apiBase
                 ? `Server not reachable at ${apiBase}. Check that it is running and accessible.`
                 : "Local server not connected. Please run 'npm start'.";
