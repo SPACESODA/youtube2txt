@@ -116,7 +116,12 @@ app.get('/transcript', async (req, res) => {
             return res.status(503).json({ error: 'Transcript service is not available. Please try again later.' });
         }
 
-        const metadata = await fetchVideoMetadata(videoId);
+        let metadata = { title: 'YouTube Video', captionLanguage: null, captionTracks: [] };
+        try {
+            metadata = await fetchVideoMetadata(videoId);
+        } catch (metadataError) {
+            console.warn('[Server] Metadata unavailable, continuing without it:', metadataError.message);
+        }
         const languageFilter = lang && lang.toLowerCase() !== 'auto' ? lang : null;
         const preferredLanguage = languageFilter || metadata.captionLanguage || 'en,en-US,en-GB';
         if (!languageFilter && metadata.captionLanguage) {
@@ -158,22 +163,6 @@ app.listen(PORT, HOST, () => {
 
 // --- HELPER FUNCTIONS ---
 
-function resolveSafeCookiesPath(envPath) {
-    if (!envPath) {
-        return null;
-    }
-    // Restrict cookies file to a trusted directory under this server.
-    const baseDir = path.join(__dirname, 'cookies');
-    const resolved = path.resolve(envPath);
-    const relative = path.relative(baseDir, resolved);
-    // Disallow paths that escape the base directory.
-    if (relative.startsWith('..') || path.isAbsolute(relative)) {
-        console.warn(`[Server] Ignoring YTDLP_COOKIES path outside allowed directory: ${envPath}`);
-        return null;
-    }
-    return resolved;
-}
-
 async function fetchTranscriptYtDlp(videoId, languageFilter) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     const outputBase = path.join(
@@ -194,7 +183,7 @@ async function fetchTranscriptYtDlp(videoId, languageFilter) {
         throw new Error('yt-dlp is not available.');
     }
     const jsRuntime = `node:${process.execPath}`;
-    const cookiesPath = resolveSafeCookiesPath(process.env.YTDLP_COOKIES);
+    const cookiesPath = process.env.YTDLP_COOKIES ? path.resolve(process.env.YTDLP_COOKIES) : null;
     const selectedLanguage = languageFilter;
 
     const args = [
@@ -259,22 +248,13 @@ async function fetchTranscriptYtDlp(videoId, languageFilter) {
 
 async function fetchVideoMetadata(videoId) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const fallback = { title: 'YouTube Video', captionLanguage: null, captionTracks: [] };
         let settled = false;
-        const finish = ({ ok, payload }) => {
+        const finish = (payload) => {
             if (settled) return;
             settled = true;
-            if (ok) {
-                resolve(payload);
-            } else {
-                // Ensure we always reject with an Error instance
-                if (payload instanceof Error) {
-                    reject(payload);
-                } else {
-                    reject(new Error(String(payload)));
-                }
-            }
+            resolve(payload);
         };
 
         const req = https.get(url, {
@@ -282,10 +262,7 @@ async function fetchVideoMetadata(videoId) {
         }, (res) => {
             if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
                 res.resume();
-                return finish({
-                    ok: false,
-                    payload: new Error(`Metadata request failed with status code ${res.statusCode}`)
-                });
+                return finish(fallback);
             }
             let data = '';
             res.on('data', chunk => data += chunk);
@@ -298,28 +275,22 @@ async function fetchVideoMetadata(videoId) {
                     const captionTracks = extractCaptionTracks(rawCaptionTracks);
                     const preferredTitle = getPreferredTitle(playerResponse, match);
                     if (preferredTitle) {
-                        finish({ ok: true, payload: { title: `${preferredTitle} - YouTube`, captionLanguage, captionTracks } });
+                        finish({ title: `${preferredTitle} - YouTube`, captionLanguage, captionTracks });
                     } else {
-                        // Parsing succeeded but no preferred title: still treat as success, use fallback title.
-                        finish({ ok: true, payload: { title: fallback.title, captionLanguage, captionTracks } });
+                        finish({ title: fallback.title, captionLanguage, captionTracks });
                     }
                 } catch (e) {
-                    // Parsing error: treat as request-level failure.
-                    finish({ ok: false, payload: e instanceof Error ? e : new Error('Failed to parse video metadata') });
+                    finish(fallback);
                 }
             });
-            // Destroy the request and reject due to timeout.
         });
-            finish({ ok: false, payload: new Error('Metadata request timed out.') });
 
         req.setTimeout(METADATA_TIMEOUT_MS, () => {
             if (settled) return;
             req.destroy(new Error('Metadata request timed out.'));
         });
 
-        req.on('error', (err) => {
-            finish({ ok: false, payload: err || new Error('Metadata request failed.') });
-        });
+        req.on('error', () => finish(fallback));
     });
 }
 
@@ -453,7 +424,7 @@ function pickBestSubtitle(files, dir) {
 
 function runYtDlp(args) {
     return new Promise((resolve, reject) => {
-        const child = spawn(YTDLP_PATH, args);
+        const child = spawn(YTDLP_PATH, args, { cwd: __dirname });
         let stdout = '';
         let stderr = '';
 
