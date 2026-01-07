@@ -19,40 +19,59 @@ Since this tool runs **locally**, it uses your residential IP address, which You
 
 ## How to Use
 
-### 1. Prerequisites
-- **Node.js**: Ensure you have Node.js installed.
-- **Python 3**: Required on macOS/Linux for the underlying extraction engine. Not required on Windows.
+### Method 1: Local Install by Quick Start (recommended)
+1. Install **Node.js 20+** (includes npm): https://nodejs.org/
+2. **macOS/Linux**: install **Python 3**: https://www.python.org/downloads/
+3. From the repo folder:
+    ```bash
+    npm run quickstart
+    ```
+This runs a preflight check, installs dependencies, and starts the server.
 
-### 2. Installation
-Download this repo (or clone it), then `cd` into the folder.  
-Run this command to install dependencies:
+### Method 2: Local Install, Manual
 ```bash
 npm install
-```
-
-### 3. Start the Server
-To run the tool:
-```bash
 npm start
 ```
-This will:
-1.  Start the local server at `http://localhost:3000`.
-2.  Automatically download the `yt-dlp` binary if needed.
-3.  Serve the web interface.
 
-**To Restart:**
-If you need to stop or restart the server, simply press `Ctrl + C` in your terminal to stop it, then run `npm start` again.
+**To Restart:** If you need to stop or restart the server, simply press `Ctrl + C` in your terminal to stop it, then run `npm start` again.
 
-#### Optional Environment Variables
+**To Check:** If you want to check dependencies, run:
+```bash
+npm run doctor
+```
+
+### Method 3: Docker
+If you already use Docker, you can run it without local Node/npm installs.  
+Requires Docker Desktop (or Docker Engine + Compose v2).
+```bash
+docker compose up --build
+```
+The server is then ready to go.
+
+### Optional Environment Variables
 - `YTDLP_PATH`: Use an existing `yt-dlp` binary from a custom path.
 - `YTDLP_COOKIES`: Path to a cookies file for YouTube (helps with rate limits).
 - `HOST`: Override the server host (default is 0.0.0.0).
 - `PORT`: Override the server port (default is 3000).
 
-#### Using the latest UI
+### Using the latest UI
 Access the tool at `http://localhost:3000`, or use the hosted page which includes the latest UI updates:
 - **GitHub Pages**: [https://spacesoda.github.io/youtube2txt/](https://spacesoda.github.io/youtube2txt/)
 - **Auto-connect to Local Server**: [https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000](https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000)
+
+### Per-project Node Version (recommended)
+To keep Node isolated and avoid conflicts with other projects:
+- **nvm (macOS/Linux)**: run `nvm install` then `nvm use` (this repo includes `.nvmrc`).
+- **nvm-windows**: https://github.com/coreybutler/nvm-windows
+- **Volta (macOS/Windows/Linux)**: https://volta.sh (this repo pins Node 20 via `package.json`).
+
+### Troubleshooting
+- `node: command not found` or `npm not found`: install Node.js 20+ from https://nodejs.org/
+- `python3: command not found` or `Python was not found`: install Python 3 (macOS/Linux only).
+- `EACCES` or `EPERM`: permissions issue. Avoid sudo; try deleting `node_modules` and re-running.
+- `EADDRINUSE`: port 3000 is busy. Run with `PORT=3001 npm start`.
+- `npm ERR! network`: network or proxy issue. Try again or switch networks.
 
 ## License
 
