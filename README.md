@@ -13,7 +13,7 @@ Since this tool runs **locally**, it uses your residential IP address, which You
 - **Multi-language Transcripts**: Fetch transcripts in different available languages when provided by YouTube.
 - **Instant Copy/Download**: One-click copy to clipboard or download as `.txt` for LLM use.
 
-## What is yt-dlp?
+### What is yt-dlp?
 
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) is a powerful, open-source command-line tool used to extract information and download media from YouTube and thousands of other sites. In this project, it is used as the core engine to fetch high-quality, timed transcripts while handling YouTube's complex anti-bot measures better than standard web crawlers.
 
