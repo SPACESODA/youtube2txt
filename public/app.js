@@ -304,7 +304,6 @@ const CACHE_PREFIX = 'ts_cache_';
 const CACHE_CONFIG = {
     TTL_MS: 10 * 60 * 1000 // 10 minutes
 };
-const CACHE_TTL = CACHE_CONFIG.TTL_MS;
 
 function saveToCache(videoId, lang, data) {
     const key = `${CACHE_PREFIX}${videoId}_${lang || 'auto'}`;
@@ -328,7 +327,7 @@ function getCachedTranscript(videoId, lang) {
     try {
         const payload = JSON.parse(raw);
         const age = Date.now() - payload.timestamp;
-        if (age > CACHE_TTL) {
+        if (age > CACHE_CONFIG.TTL_MS) {
             localStorage.removeItem(key);
             return null;
         }
