@@ -411,6 +411,10 @@ button:active {
     animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+#localReminderMessage {
+    white-space: pre-line;
+}
+
 .local-reminder p:first-child {
     font-size: 1.1rem;
     margin-bottom: 0.5rem;
