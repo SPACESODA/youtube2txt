@@ -60,7 +60,7 @@ Access the tool at `http://localhost:3000`, or use the hosted page which include
 - **GitHub Pages**: [https://spacesoda.github.io/youtube2txt/](https://spacesoda.github.io/youtube2txt/)
 - **Auto-connect to Local Server**: [https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000](https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000)
 
-### Per-project Node Version (recommended)
+### Per-project Node Version
 To keep Node isolated and avoid conflicts with other projects:
 - **nvm (macOS/Linux)**: run `nvm install` then `nvm use` (this repo includes `.nvmrc`).
 - **nvm-windows**: https://github.com/coreybutler/nvm-windows

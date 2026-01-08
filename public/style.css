@@ -75,7 +75,8 @@ header h1 {
 
 header p {
     color: var(--text-secondary);
-    font-size: 1.125rem;
+    font-size: 1rem;
+    line-height: 120%;
     max-width: 480px;
     margin: 0 auto;
 }
@@ -447,10 +448,6 @@ button:active {
     text-decoration: none;
 }
 
-.site-footer a:hover {
-    color: var(--text);
-}
-
 .footer-menu {
     display: inline-flex;
     align-items: center;
@@ -462,12 +459,20 @@ button:active {
     line-height: 120%;
 }
 
+.footer-menu a {
+    opacity: 0.6;
+}
+
+.footer-menu a:hover {
+    opacity: 1;
+}
+
 .footer-separator {
-    opacity: 0.5;
+    opacity: 0.3;
 }
 
 .footer-current {
-    opacity: 0.8;
+    opacity: 1 !important;
     pointer-events: none;
 }
 
