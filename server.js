@@ -113,7 +113,8 @@ app.get('/transcript', async (req, res) => {
         try {
             await ytdlpReady;
         } catch (initError) {
-            console.error('[Server] yt-dlp initialization error:', initError);
+            const initMessage = (initError && initError.message) ? initError.message : 'Unknown initialization error';
+            console.error('[Server] yt-dlp initialization error:', initMessage);
             return res.status(503).json({ error: 'Transcript service is not available. Please try again later.' });
         }
 
