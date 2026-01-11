@@ -37,7 +37,9 @@ function setupPython() {
                 fs.symlinkSync(python3Path, symlinkPath);
                 console.log('[Server] Created python symlink.');
             } catch (e) {
-                console.error(`[Server] Failed to setup python symlink: ${e.message}. yt-dlp might fail if 'python' is not in PATH. Consider installing Python, adding it to your PATH, and ensuring this process has permission to create symlinks.`);
+                const baseMessage = `[Server] Failed to setup python symlink: ${e.message}.`;
+                const guidanceMessage = " yt-dlp might fail if 'python' is not in PATH. Consider installing Python, adding it to your PATH, and ensuring this process has permission to create symlinks.";
+                console.error(baseMessage + guidanceMessage);
             }
         } else {
             console.error("[Server] Failed to setup python symlink: python not found in PATH. yt-dlp might fail if 'python' is not in PATH.");
@@ -113,7 +115,8 @@ app.get('/transcript', async (req, res) => {
         try {
             await ytdlpReady;
         } catch (initError) {
-            console.error('[Server] yt-dlp initialization error:', initError);
+            const initMessage = (initError && initError.message) ? initError.message : 'Unknown initialization error';
+            console.error('[Server] yt-dlp initialization error:', initMessage);
             return res.status(503).json({ error: 'Transcript service is not available. Please try again later.' });
         }
 

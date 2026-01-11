@@ -66,7 +66,7 @@ function printHints(output) {
 
 async function main() {
     console.log('Quick start: running checks...');
-    const doctorResult = await runCommand(process.execPath, [path.join(__dirname, 'doctor.js')], { stdio: ['inherit', 'pipe', 'pipe'] });
+    const doctorResult = await runCommand(process.execPath, [path.join(__dirname, 'doctor.js')]);
     if (doctorResult.code !== 0) {
         console.log('\nFix the issues above, then re-run: npm run quickstart');
         process.exit(1);
