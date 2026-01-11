@@ -81,12 +81,22 @@ async function main() {
     }
 
     console.log('\nStarting the server...');
-    const startResult = await runCommand(npmCmd, ['start']);
-    if (startResult.code !== 0) {
-        console.log('\nServer exited with an error.');
-        printHints(`${startResult.stdout}\n${startResult.stderr}`);
+    const serverProcess = spawn(npmCmd, ['start'], {
+        cwd: repoRoot,
+        env: process.env,
+        stdio: 'inherit',
+    });
+
+    serverProcess.on('error', (error) => {
+        console.error('\nFailed to start the server.', error);
         process.exit(1);
-    }
+    });
+
+    serverProcess.on('exit', (code) => {
+        if (code !== 0) {
+            console.log('\nServer exited with an error.');
+        }
+    });
 }
 
 main().catch((error) => {
