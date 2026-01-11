@@ -183,7 +183,8 @@ async function fetchTranscriptYtDlp(videoId, languageFilter) {
     if (!YTDLP_PATH) {
         throw new Error('yt-dlp is not available.');
     }
-    const jsRuntime = `node:${process.execPath}`;
+    // Use a whitelisted js runtime identifier instead of embedding process.execPath.
+    const jsRuntime = 'node';
     const cookiesPath = process.env.YTDLP_COOKIES ? path.resolve(process.env.YTDLP_COOKIES) : null;
     const selectedLanguage = languageFilter;
 
