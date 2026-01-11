@@ -249,13 +249,17 @@ async function fetchTranscriptYtDlp(videoId, languageFilter) {
 
 async function fetchVideoMetadata(videoId) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const fallback = { title: 'YouTube Video', captionLanguage: null, captionTracks: [] };
         let settled = false;
-        const finish = (payload) => {
+        const finish = (payload, error) => {
             if (settled) return;
             settled = true;
-            resolve(payload);
+            if (error) {
+                reject(error);
+            } else {
+                resolve(payload);
+            }
         };
 
         const req = https.get(url, {
@@ -263,7 +267,7 @@ async function fetchVideoMetadata(videoId) {
         }, (res) => {
             if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
                 res.resume();
-                return finish(fallback);
+                return finish(null, new Error(`Metadata request failed with status code ${res.statusCode}`));
             }
             let data = '';
             res.on('data', chunk => data += chunk);
@@ -277,6 +281,7 @@ async function fetchVideoMetadata(videoId) {
                     const preferredTitle = getPreferredTitle(playerResponse, match);
                     if (preferredTitle) {
                         finish({ title: `${preferredTitle} - YouTube`, captionLanguage, captionTracks });
+                    // If parsing fails, fall back to a generic title but still resolve successfully.
                     } else {
                         finish({ title: fallback.title, captionLanguage, captionTracks });
                     }
@@ -288,10 +293,15 @@ async function fetchVideoMetadata(videoId) {
 
         req.setTimeout(METADATA_TIMEOUT_MS, () => {
             if (settled) return;
-            req.destroy(new Error('Metadata request timed out.'));
+            const timeoutError = new Error('Metadata request timed out.');
+            req.destroy(timeoutError);
+            finish(null, timeoutError);
         });
 
-        req.on('error', () => finish(fallback));
+        req.on('error', (err) => {
+            if (settled) return;
+            finish(null, err || new Error('Metadata request encountered a network error.'));
+        });
     });
 }
 
