@@ -389,8 +389,24 @@ function extractVideoId(url) {
     return false;
 }
 
+function formatTranscript(transcript) {
+    const lines = [];
+    (transcript || []).forEach((item) => {
+        if (!item || !item.text) return;
+        const cueText = String(item.text).replace(/\r\n?/g, '\n').trim();
+        if (!cueText) return;
+        const firstLine = cueText.split('\n').find(line => line.trim()) || '';
+        const isSpeakerCue = firstLine.startsWith('>>');
+        if (isSpeakerCue && lines.length > 0) {
+            lines.push('');
+        }
+        lines.push(cueText);
+    });
+    return lines.join('\n');
+}
+
 function displayTranscript(transcript) {
-    const formattedText = transcript.map(item => item.text).join(' ');
+    const formattedText = formatTranscript(transcript);
     // Prepend title to the UI content (so it can be copied easily)
     const headerLines = [];
     if (currentVideoTitle) headerLines.push(currentVideoTitle);

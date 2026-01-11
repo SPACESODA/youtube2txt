@@ -363,8 +363,8 @@ function parseVTT(vttText) {
                 text: ''
             };
         } else if (current) {
-            // Append text (handle multi-line)
-            current.text = current.text ? current.text + ' ' + line : line;
+            // Preserve source line breaks within each cue.
+            current.text = current.text ? `${current.text}\n${line}` : line;
         }
     }
     if (current) items.push(current);
