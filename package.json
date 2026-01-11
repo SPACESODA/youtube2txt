@@ -1,6 +1,6 @@
 {
   "name": "youtube2txt",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Local server for fetching YouTube transcripts",
   "main": "server.js",
   "scripts": {

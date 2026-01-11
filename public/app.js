@@ -390,19 +390,114 @@ function extractVideoId(url) {
 }
 
 function formatTranscript(transcript) {
-    const lines = [];
+    const blocks = [];
+    let paragraph = '';
+    let lastLine = '';
+    let lastParagraphChunk = '';
+
+    // Normalize cues into single-line strings to keep output stable across VTT formats.
+    const normalizeInline = (text) => {
+        const parts = String(text)
+            .replace(/\r\n?/g, '\n')
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean);
+        return parts.join(' ');
+    };
+
+    // Flush accumulated non-speaker text before a speaker cue.
+    const flushParagraph = () => {
+        if (paragraph.trim()) {
+            blocks.push(paragraph.trim());
+        }
+        paragraph = '';
+        lastParagraphChunk = '';
+    };
+
     (transcript || []).forEach((item) => {
         if (!item || !item.text) return;
-        const cueText = String(item.text).replace(/\r\n?/g, '\n').trim();
-        if (!cueText) return;
-        const firstLine = cueText.split('\n').find(line => line.trim()) || '';
-        const isSpeakerCue = firstLine.startsWith('>>');
-        if (isSpeakerCue && lines.length > 0) {
-            lines.push('');
+        const normalized = normalizeInline(item.text);
+        if (!normalized) return;
+        if (normalized.includes('>>')) {
+            flushParagraph();
+            // Speaker cues sometimes arrive as rolling captions; only the newest tail should survive.
+            // Split on ">>" and keep unique suffixes to avoid repeated fragments.
+            const segments = normalized
+                .split('>>')
+                .map(segment => segment.trim())
+                .filter(Boolean);
+            segments.forEach((segment) => {
+                const speakerContent = segment.replace(/\s+/g, ' ').trim();
+                if (!speakerContent) return;
+                const speakerLine = `>> ${speakerContent}`;
+                const lastBlock = blocks[blocks.length - 1];
+                // Skip speaker tails already contained in the last paragraph block.
+                if (lastBlock && !lastBlock.startsWith('>>') && lastBlock.endsWith(speakerContent)) {
+                    return;
+                }
+                if (lastBlock && lastBlock.startsWith('>>')) {
+                    const lastContent = lastBlock.replace(/^>>\s*/, '');
+                    // Drop or extend when the new line is just a rolling caption update.
+                    if (lastContent.endsWith(speakerContent)) {
+                        lastLine = lastBlock;
+                        return;
+                    }
+                    if (speakerContent === lastContent) {
+                        lastLine = lastBlock;
+                        return;
+                    }
+                    if (speakerContent.startsWith(lastContent)) {
+                        blocks[blocks.length - 1] = speakerLine;
+                        lastLine = speakerLine;
+                        return;
+                    }
+                    if (lastContent.startsWith(speakerContent)) {
+                        lastLine = lastBlock;
+                        return;
+                    }
+                }
+                if (paragraph && paragraph.endsWith(speakerContent)) {
+                    return;
+                }
+                if (speakerLine === lastLine) return;
+                lastLine = speakerLine;
+                blocks.push(speakerLine);
+            });
+            return;
         }
-        lines.push(cueText);
+
+        const lastBlock = blocks[blocks.length - 1];
+        if (lastBlock) {
+            const lastContent = lastBlock.replace(/^>>\s*/, '');
+            // Skip non-speaker tails that are already present in the last speaker line.
+            if (lastContent.endsWith(normalized)) {
+                return;
+            }
+        }
+        if (normalized === lastLine) return;
+        lastLine = normalized;
+        if (!paragraph) {
+            paragraph = normalized;
+            lastParagraphChunk = normalized;
+            return;
+        }
+        if (normalized === lastParagraphChunk) return;
+        if (paragraph.endsWith(normalized)) {
+            lastParagraphChunk = normalized;
+            return;
+        }
+        if (paragraph.endsWith(lastParagraphChunk) && normalized.startsWith(lastParagraphChunk)) {
+            paragraph = paragraph.slice(0, -lastParagraphChunk.length) + normalized;
+            lastParagraphChunk = normalized;
+            return;
+        }
+
+        paragraph = `${paragraph} ${normalized}`;
+        lastParagraphChunk = normalized;
     });
-    return lines.join('\n');
+
+    flushParagraph();
+    return blocks.join('\n');
 }
 
 function displayTranscript(transcript) {
