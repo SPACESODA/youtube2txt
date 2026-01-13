@@ -3,9 +3,9 @@
 **youtube2txt** (YouTube Transcript Grabber) — A robust, locally-hosted tool to extract clean transcripts from any YouTube video. It runs on your own machine to bypass YouTube's IP blocks on public proxies, ensuring high reliability by using the powerful `yt-dlp` engine under the hood.
 
 > [!IMPORTANT]
-> This tool must be hosted locally on your own machine to avoid IP blocks from YouTube.
+> This tool must run locally to avoid YouTube IP blocks. It uses your own IP, which YouTube trusts, so transcript fetches are far more reliable.
 
-Since this tool runs **locally**, it uses your residential IP address, which YouTube trusts, effectively eliminating these errors.
+<br>
 
 ## Features
 
@@ -16,6 +16,8 @@ Since this tool runs **locally**, it uses your residential IP address, which You
 ### What is yt-dlp?
 
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) is a powerful, open-source command-line tool used to extract information and download media from YouTube and thousands of other sites. In this project, it is used as the core engine to fetch high-quality, timed transcripts while handling YouTube's complex anti-bot measures better than standard web crawlers.
+
+<br>
 
 ## How to Use
 
@@ -55,16 +57,20 @@ Requires Docker Desktop (or Docker Engine + Compose v2).
 docker compose up --build
 ```
 
-### Optional Environment Variables
-- `YTDLP_PATH`: Use an existing `yt-dlp` binary from a custom path.
-- `YTDLP_COOKIES`: Path to a cookies file for YouTube (helps with rate limits).
-- `HOST`: Override the server host (default is 0.0.0.0).
-- `PORT`: Override the server port (default is 3000).
+<br>
+
+## Configuration & Troubleshooting
 
 ### Using the latest UI
 Access the tool at `http://localhost:3000`, or use the hosted page which includes the latest UI updates:
 - **GitHub Pages**: [https://spacesoda.github.io/youtube2txt/](https://spacesoda.github.io/youtube2txt/)
 - **Auto-connect to Local Server**: [https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000](https://spacesoda.github.io/youtube2txt/?apiBase=http://localhost:3000)
+
+### Optional Environment Variables
+- `YTDLP_PATH`: Use an existing `yt-dlp` binary from a custom path.
+- `YTDLP_COOKIES`: Path to a cookies file for YouTube (helps with rate limits).
+- `HOST`: Override the server host (default is 0.0.0.0).
+- `PORT`: Override the server port (default is 3000).
 
 ### Per-project Node Version
 To keep Node isolated and avoid conflicts with other projects:
@@ -79,12 +85,17 @@ To keep Node isolated and avoid conflicts with other projects:
 - `EADDRINUSE`: port 3000 is busy. Run with `PORT=3001 npm start`.
 - `npm ERR! network`: network or proxy issue. Try again or switch networks.
 
-## Release (for devs)
-To publish a new release with app files reliably included, tag the release and push the tag using the following commands:
+<br>
+
+## Publishing a Release
+
+To publish a new release with app files reliably included, use the following commands:
 ```bash
 git tag v1.2.6
 git push origin v1.2.6
 ```
+
+<br>
 
 ## License
 

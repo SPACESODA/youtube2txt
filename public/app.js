@@ -49,7 +49,8 @@ let currentSelectedLang = 'auto';
 let currentDefaultLang = '';
 const localReminderDefaults = {
     title: localReminderTitle ? localReminderTitle.innerText : '',
-    message: localReminderMessage ? localReminderMessage.innerText : '',
+    messageText: localReminderMessage ? localReminderMessage.innerText : '',
+    messageHtml: localReminderMessage ? localReminderMessage.innerHTML : '',
     actionHtml: localReminderAction ? localReminderAction.innerHTML : ''
 };
 
@@ -82,7 +83,8 @@ function showLocalReminder(variant = 'local') {
         return;
     }
     localReminderTitle.innerText = localReminderDefaults.title;
-    localReminderMessage.innerText = localReminderDefaults.message;
+    localReminderMessage.innerHTML =
+        localReminderDefaults.messageHtml || localReminderDefaults.messageText;
     localReminderAction.innerHTML = localReminderDefaults.actionHtml;
 }
 
