@@ -50,17 +50,23 @@
         }
       ],
       "compression": "maximum",
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "artifactName": "youtube2txt-v${version}-universal.${ext}"
     },
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "artifactName": "youtube2txt-v${version}.${ext}"
+    },
+    "nsis": {
+      "artifactName": "youtube2txt-v${version}.${ext}"
     },
     "linux": {
       "target": [
         "AppImage"
-      ]
+      ],
+      "artifactName": "youtube2txt-v${version}.${ext}"
     },
     "publish": [
       {
