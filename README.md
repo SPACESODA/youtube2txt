@@ -37,7 +37,7 @@ Updates are delivered through the app via GitHub Releases.
     ```
 This runs a preflight check, installs dependencies, and starts the server.
 
-### Method 3: Local Install manually
+### Method 3: Local Install Manually
 ```bash
 npm install
 npm start
@@ -78,6 +78,13 @@ To keep Node isolated and avoid conflicts with other projects:
 - `EACCES` or `EPERM`: permissions issue. Avoid sudo; try deleting `node_modules` and re-running.
 - `EADDRINUSE`: port 3000 is busy. Run with `PORT=3001 npm start`.
 - `npm ERR! network`: network or proxy issue. Try again or switch networks.
+
+## Release (for devs)
+To publish a new release with app files reliably included, tag the release and push the tag using the following commands:
+```bash
+git tag v1.2.6
+git push origin v1.2.6
+```
 
 ## License
 
