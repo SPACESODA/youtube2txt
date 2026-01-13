@@ -50,8 +50,9 @@ let currentDefaultLang = '';
 const localReminderDefaults = {
     title: localReminderTitle ? localReminderTitle.innerText : '',
     messageText: localReminderMessage ? localReminderMessage.innerText : '',
-    messageHtml: localReminderMessage ? localReminderMessage.innerHTML : '',
-    actionHtml: localReminderAction ? localReminderAction.innerHTML : ''
+    messageNodes: localReminderMessage ? Array.from(localReminderMessage.childNodes) : [],
+    actionText: localReminderAction ? localReminderAction.innerText : '',
+    actionNodes: localReminderAction ? Array.from(localReminderAction.childNodes) : []
 };
 
 function isLocalApiBase(value) {
@@ -74,18 +75,24 @@ if (window.location.hostname === 'spacesoda.github.io' && !hasApiBaseValue) {
 function showLocalReminder(variant = 'local') {
     if (localReminder) localReminder.classList.remove('hidden');
     if (!localReminderTitle || !localReminderMessage || !localReminderAction) return;
+    const restoreNodes = (target, nodes, fallbackText) => {
+        if (nodes && nodes.length > 0) {
+            target.replaceChildren(...nodes.map((node) => node.cloneNode(true)));
+        } else {
+            target.innerText = fallbackText || '';
+        }
+    };
     if (variant === 'remote') {
         localReminderTitle.innerText = 'Server Not Reachable';
         localReminderMessage.innerText = apiBase
             ? `Server not reachable at ${apiBase}. Check that it is running and accessible.`
             : 'Server not reachable. Check that it is running and accessible.';
-        localReminderAction.innerHTML = localReminderDefaults.actionHtml;
+        restoreNodes(localReminderAction, localReminderDefaults.actionNodes, localReminderDefaults.actionText);
         return;
     }
     localReminderTitle.innerText = localReminderDefaults.title;
-    localReminderMessage.innerHTML =
-        localReminderDefaults.messageHtml || localReminderDefaults.messageText;
-    localReminderAction.innerHTML = localReminderDefaults.actionHtml;
+    restoreNodes(localReminderMessage, localReminderDefaults.messageNodes, localReminderDefaults.messageText);
+    restoreNodes(localReminderAction, localReminderDefaults.actionNodes, localReminderDefaults.actionText);
 }
 
 async function probeLocalServer() {
