@@ -7,19 +7,39 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const app = express();
-const PORT = Number(process.env.PORT) || 3000;
-const HOST = process.env.HOST || '0.0.0.0';
 const METADATA_TIMEOUT_MS = 30000;
-
-app.use(cors());
-app.use(express.static('public'));
-
-// --- INITIALIZATION ---
-const BIN_DIR = path.join(__dirname, 'bin');
 const LOCAL_YTDLP_BASENAME = process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp';
-const LOCAL_YTDLP_PATH = path.join(__dirname, LOCAL_YTDLP_BASENAME);
+
 let YTDLP_PATH = null;
+let DATA_DIR = __dirname;
+let PUBLIC_DIR = path.join(__dirname, 'public');
+let BIN_DIR = path.join(DATA_DIR, 'bin');
+let LOCAL_YTDLP_PATH = path.join(DATA_DIR, LOCAL_YTDLP_BASENAME);
+
+function applyRuntimeConfig(options = {}) {
+    const appRoot = options.appRoot ? path.resolve(options.appRoot) : __dirname;
+    const dataDir = options.dataDir
+        ? path.resolve(options.dataDir)
+        : (process.env.YT2TXT_DATA_DIR ? path.resolve(process.env.YT2TXT_DATA_DIR) : appRoot);
+    DATA_DIR = dataDir;
+    PUBLIC_DIR = options.publicDir ? path.resolve(options.publicDir) : path.join(appRoot, 'public');
+    BIN_DIR = path.join(DATA_DIR, 'bin');
+    LOCAL_YTDLP_PATH = path.join(DATA_DIR, LOCAL_YTDLP_BASENAME);
+}
+
+function ensureDataDir() {
+    if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+}
+
+function resolveHost(options = {}) {
+    return options.host || process.env.HOST || '0.0.0.0';
+}
+
+function resolvePort(options = {}) {
+    return Number(options.port || process.env.PORT || 3000);
+}
 
 // 1. Setup Python Environment (Symlink python3 -> bin/python)
 function setupPython() {
@@ -91,86 +111,116 @@ function setupYtDlp() {
     });
 }
 
-setupPython();
-const ytdlpReady = setupYtDlp();
+function createApp(options = {}) {
+    applyRuntimeConfig(options);
+    ensureDataDir();
 
-// --- ROUTES ---
+    const app = express();
+    app.use(cors());
+    app.use(express.static(PUBLIC_DIR));
 
-app.get('/transcript', async (req, res) => {
-    const videoId = req.query.videoId;
-    const lang = typeof req.query.lang === 'string' ? req.query.lang.trim() : '';
-    if (!videoId) return res.status(400).json({ error: 'Missing videoId' });
-    if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
-        return res.status(400).json({ error: 'Invalid videoId format' });
-    }
-    if (lang && !/^[a-zA-Z0-9,-]+$/.test(lang)) {
-        return res.status(400).json({ error: 'Invalid lang format' });
-    }
+    setupPython();
+    const ytdlpReady = setupYtDlp();
 
-    console.log(`[Server] Fetching transcript for: ${videoId}`);
+    // --- ROUTES ---
+    app.get('/transcript', async (req, res) => {
+        const videoId = req.query.videoId;
+        const lang = typeof req.query.lang === 'string' ? req.query.lang.trim() : '';
+        if (!videoId) return res.status(400).json({ error: 'Missing videoId' });
+        if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+            return res.status(400).json({ error: 'Invalid videoId format' });
+        }
+        if (lang && !/^[a-zA-Z0-9,-]+$/.test(lang)) {
+            return res.status(400).json({ error: 'Invalid lang format' });
+        }
 
-    try {
-        // Ensure yt-dlp is initialized before proceeding. If initialization fails,
-        // return a clear, user-friendly error instead of exposing internal details.
+        console.log(`[Server] Fetching transcript for: ${videoId}`);
+
         try {
-            await ytdlpReady;
-        } catch (initError) {
-            const initMessage = (initError && initError.message) ? initError.message : 'Unknown initialization error';
-            console.error('[Server] yt-dlp initialization error:', initMessage);
-            return res.status(503).json({ error: 'Transcript service is not available. Please try again later.' });
+            // Ensure yt-dlp is initialized before proceeding. If initialization fails,
+            // return a clear, user-friendly error instead of exposing internal details.
+            try {
+                await ytdlpReady;
+            } catch (initError) {
+                const initMessage = (initError && initError.message) ? initError.message : 'Unknown initialization error';
+                console.error('[Server] yt-dlp initialization error:', initMessage);
+                return res.status(503).json({ error: 'Transcript service is not available. Please try again later.' });
+            }
+
+            let metadata = { title: 'YouTube Video', captionLanguage: null, captionTracks: [] };
+            try {
+                metadata = await fetchVideoMetadata(videoId);
+            } catch (metadataError) {
+                console.warn('[Server] Metadata unavailable, continuing without it:', metadataError.message);
+            }
+            const languageFilter = lang && lang.toLowerCase() !== 'auto' ? lang : null;
+            const preferredLanguage = languageFilter || metadata.captionLanguage || 'en,en-US,en-GB';
+            if (!languageFilter && metadata.captionLanguage) {
+                console.log(`[Server] Auto-selected subtitle language: ${metadata.captionLanguage}`);
+            }
+            const segments = await fetchTranscriptYtDlp(videoId, preferredLanguage);
+            const title = metadata.title;
+            res.json({ title, segments });
+        } catch (error) {
+            const message = (error && error.message) ? error.message : 'Internal server error';
+            console.error('[Server] Error:', message);
+            res.status(500).json({ error: message });
+        }
+    });
+
+    app.get('/languages', async (req, res) => {
+        const videoId = req.query.videoId;
+        if (!videoId) return res.status(400).json({ error: 'Missing videoId' });
+        if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+            return res.status(400).json({ error: 'Invalid videoId format' });
         }
 
-        let metadata = { title: 'YouTube Video', captionLanguage: null, captionTracks: [] };
         try {
-            metadata = await fetchVideoMetadata(videoId);
-        } catch (metadataError) {
-            console.warn('[Server] Metadata unavailable, continuing without it:', metadataError.message);
+            const metadata = await fetchVideoMetadata(videoId);
+            const languages = buildLanguageOptions(metadata.captionTracks || []);
+            res.json({
+                defaultLang: metadata.captionLanguage || '',
+                languages
+            });
+        } catch (error) {
+            console.error('[Server] Error:', error.message);
+            res.status(500).json({ error: error.message });
         }
-        const languageFilter = lang && lang.toLowerCase() !== 'auto' ? lang : null;
-        const preferredLanguage = languageFilter || metadata.captionLanguage || 'en,en-US,en-GB';
-        if (!languageFilter && metadata.captionLanguage) {
-            console.log(`[Server] Auto-selected subtitle language: ${metadata.captionLanguage}`);
-        }
-        const segments = await fetchTranscriptYtDlp(videoId, preferredLanguage);
-        const title = metadata.title;
-        res.json({ title, segments });
-    } catch (error) {
-        const message = (error && error.message) ? error.message : 'Internal server error';
-        console.error('[Server] Error:', message);
-        res.status(500).json({ error: message });
-    }
-});
+    });
 
-app.get('/languages', async (req, res) => {
-    const videoId = req.query.videoId;
-    if (!videoId) return res.status(400).json({ error: 'Missing videoId' });
-    if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
-        return res.status(400).json({ error: 'Invalid videoId format' });
-    }
+    return { app, ytdlpReady };
+}
 
-    try {
-        const metadata = await fetchVideoMetadata(videoId);
-        const languages = buildLanguageOptions(metadata.captionTracks || []);
-        res.json({
-            defaultLang: metadata.captionLanguage || '',
-            languages
+function startServer(options = {}) {
+    const { app, ytdlpReady } = createApp(options);
+    const host = resolveHost(options);
+    const port = resolvePort(options);
+
+    return new Promise((resolve, reject) => {
+        const server = app.listen(port, host, () => {
+            console.log(`Local Transcript Server running at http://${host}:${port}`);
+            resolve({ app, server, host, port, ytdlpReady });
         });
-    } catch (error) {
-        console.error('[Server] Error:', error.message);
-        res.status(500).json({ error: error.message });
-    }
-});
+        server.on('error', reject);
+    });
+}
 
-app.listen(PORT, HOST, () => {
-    console.log(`Local Transcript Server running at http://${HOST}:${PORT}`);
-});
+if (require.main === module) {
+    startServer().catch((error) => {
+        const message = error && error.message ? error.message : String(error);
+        console.error('[Server] Failed to start:', message);
+        process.exit(1);
+    });
+}
+
+module.exports = { startServer };
 
 // --- HELPER FUNCTIONS ---
 
 async function fetchTranscriptYtDlp(videoId, languageFilter) {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
     const outputBase = path.join(
-        __dirname,
+        DATA_DIR,
         `temp_${videoId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     );
     const outputPrefix = path.basename(outputBase);
@@ -186,7 +236,9 @@ async function fetchTranscriptYtDlp(videoId, languageFilter) {
     if (!YTDLP_PATH) {
         throw new Error('yt-dlp is not available.');
     }
-    const jsRuntime = `node:${process.execPath}`;
+    const jsRuntime = process.env.YTDLP_JS_RUNTIME
+        ? String(process.env.YTDLP_JS_RUNTIME)
+        : (!process.versions.electron ? `node:${process.execPath}` : '');
     const cookiesPath = process.env.YTDLP_COOKIES ? path.resolve(process.env.YTDLP_COOKIES) : null;
     const selectedLanguage = languageFilter;
 
@@ -195,10 +247,14 @@ async function fetchTranscriptYtDlp(videoId, languageFilter) {
         '--write-subs',
         '--write-auto-subs',
         '--sub-lang', selectedLanguage,
-        '--sub-format', 'vtt',
-        '--js-runtimes', jsRuntime,
-        '--output', outputBase
+        '--sub-format', 'vtt'
     ];
+
+    if (jsRuntime) {
+        args.push('--js-runtimes', jsRuntime);
+    }
+
+    args.push('--output', outputBase);
 
     if (cookiesPath) {
         if (fs.existsSync(cookiesPath)) {
@@ -228,7 +284,7 @@ async function fetchTranscriptYtDlp(videoId, languageFilter) {
 
     // Find the created file
     // yt-dlp might create temp_ID.en.vtt or temp_ID.en-US.vtt
-    const dir = __dirname;
+    const dir = DATA_DIR;
     const files = fs.readdirSync(dir)
         .filter(f => f.startsWith(outputPrefix) && f.endsWith('.vtt'));
 
@@ -303,7 +359,7 @@ function cleanup(baseName) {
     // Actually baseName is like ".../temp_VIDEOID".
     // yt-dlp appends .en.vtt
     const resolvedBase = path.resolve(baseName);
-    const resolvedRoot = path.resolve(__dirname);
+    const resolvedRoot = path.resolve(DATA_DIR);
     const expectedPrefix = /^temp_[A-Za-z0-9_-]{11}_[0-9]+_[a-z0-9]{6}$/;
     const dir = resolvedRoot;
     const prefix = path.basename(resolvedBase);
@@ -428,7 +484,7 @@ function pickBestSubtitle(files, dir) {
 
 function runYtDlp(args) {
     return new Promise((resolve, reject) => {
-        const child = spawn(YTDLP_PATH, args, { cwd: __dirname });
+        const child = spawn(YTDLP_PATH, args, { cwd: DATA_DIR });
         let stdout = '';
         let stderr = '';
 

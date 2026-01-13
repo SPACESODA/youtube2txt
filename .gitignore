@@ -4,6 +4,7 @@ node_modules/
 # Local Server Binaries & Helpers
 bin/
 yt-dlp
+dist/
 
 # Temporary files from yt-dlp
 temp_*

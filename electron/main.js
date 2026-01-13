@@ -1,0 +1,210 @@
+'use strict';
+
+const { app, Tray, Menu, shell, dialog, nativeImage } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const http = require('http');
+const { autoUpdater } = require('electron-updater');
+const { startServer } = require('../server');
+
+// Electron launcher: starts the local API server, opens the browser UI, and lives in the tray.
+const SERVER_HOST = '127.0.0.1';
+const BASE_PORT = 3000;
+const PORT_FALLBACK_LIMIT = 20;
+
+let currentPort = BASE_PORT;
+
+let tray = null;
+let serverInstance = null;
+
+// Single-instance guard: second launch reuses the running server and opens the UI.
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        openLocal();
+    });
+}
+
+function getAppRoot() {
+    return app.isPackaged ? app.getAppPath() : path.join(__dirname, '..');
+}
+
+function ensureDataDir() {
+    const dataDir = path.join(app.getPath('userData'), 'data');
+    // Writable location for yt-dlp downloads and temp files (works inside packaged apps).
+    if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+    }
+    return dataDir;
+}
+
+function waitForServer(url, timeoutMs = 20000) {
+    // Poll until the HTTP server responds, with a startup timeout.
+    return new Promise((resolve, reject) => {
+        const start = Date.now();
+        const attempt = () => {
+            const req = http.get(url, (res) => {
+                res.resume();
+                resolve();
+            });
+            req.on('error', () => {
+                if (Date.now() - start > timeoutMs) {
+                    reject(new Error('Server did not become ready in time.'));
+                    return;
+                }
+                setTimeout(attempt, 500);
+            });
+        };
+        attempt();
+    });
+}
+
+function getServerUrl(hostname) {
+    const host = hostname || 'localhost';
+    return `http://${host}:${currentPort}`;
+}
+
+function openLocal() {
+    shell.openExternal(getServerUrl('localhost'));
+}
+
+function buildTray() {
+    // Tray-only app: no windows, just menu actions.
+    const iconPath = path.join(getAppRoot(), 'public', 'assets', 'favicon-16x16.png');
+    const baseIcon = nativeImage.createFromPath(iconPath);
+    const targetSize = process.platform === 'darwin' ? 16 : 24;
+    const trayIcon = baseIcon.isEmpty()
+        ? baseIcon
+        : baseIcon.resize({ width: targetSize, height: targetSize });
+    tray = new Tray(trayIcon);
+    tray.setToolTip('youtube2txt');
+    const menuItems = [
+        { label: 'Open on Browser', click: openLocal }
+    ];
+    if (app.isPackaged) {
+        menuItems.push({ label: 'Check for Updates', click: () => autoUpdater.checkForUpdatesAndNotify() });
+    }
+    menuItems.push(
+        { type: 'separator' },
+        { label: 'Quit', click: () => app.quit() }
+    );
+    tray.setContextMenu(Menu.buildFromTemplate(menuItems));
+    tray.on('double-click', openLocal);
+}
+
+function setupAutoUpdater() {
+    // Updates only work for packaged builds with GitHub Releases.
+    if (!app.isPackaged) return;
+    autoUpdater.autoDownload = true;
+    autoUpdater.on('update-downloaded', async () => {
+        const result = await dialog.showMessageBox({
+            type: 'info',
+            buttons: ['Restart', 'Later'],
+            defaultId: 0,
+            cancelId: 1,
+            message: 'Update ready to install',
+            detail: 'Restart the app to install the latest update.'
+        });
+        if (result.response === 0) {
+            autoUpdater.quitAndInstall();
+        }
+    });
+    autoUpdater.on('error', (error) => {
+        const detail = error && error.message ? error.message : String(error);
+        console.error('[Updater] Error:', detail);
+    });
+}
+
+async function boot() {
+    // Start local server, wait for readiness, then keep the tray ready for the user to open the UI.
+    app.setAppUserModelId('com.spacesoda.youtube2txt');
+    setupAutoUpdater();
+
+    const dataDir = ensureDataDir();
+    const appRoot = getAppRoot();
+
+    try {
+        const result = await startServerWithFallback({ dataDir, appRoot });
+        serverInstance = result.server;
+    } catch (error) {
+        const detail = error && error.code === 'EADDRINUSE'
+            ? (error.message || `Ports ${BASE_PORT}-${BASE_PORT + PORT_FALLBACK_LIMIT - 1} are already in use.`)
+            : (error && error.message ? error.message : String(error));
+        await dialog.showMessageBox({
+            type: 'error',
+            buttons: ['Quit'],
+            message: 'Failed to start youtube2txt',
+            detail
+        });
+        app.quit();
+        return;
+    }
+
+    try {
+        await waitForServer(getServerUrl(SERVER_HOST));
+    } catch (error) {
+        const result = await dialog.showMessageBox({
+            type: 'warning',
+            buttons: ['Open Anyway', 'Quit'],
+            defaultId: 0,
+            cancelId: 1,
+            message: 'Server is slow to respond',
+            detail: 'The local server is still starting. You can try opening the app anyway.'
+        });
+        if (result.response === 1) {
+            app.quit();
+            return;
+        }
+    }
+
+    buildTray();
+    if (app.isPackaged) {
+        autoUpdater.checkForUpdatesAndNotify();
+    }
+}
+
+async function startServerWithFallback({ dataDir, appRoot }) {
+    // Try a small port range to avoid collisions with other local servers.
+    for (let offset = 0; offset < PORT_FALLBACK_LIMIT; offset += 1) {
+        const port = BASE_PORT + offset;
+        try {
+            const result = await startServer({
+                host: SERVER_HOST,
+                port,
+                dataDir,
+                appRoot
+            });
+            currentPort = port;
+            if (port !== BASE_PORT) {
+                console.log(`[Launcher] Port ${BASE_PORT} busy, using ${port}.`);
+            }
+            return result;
+        } catch (error) {
+            if (error && error.code === 'EADDRINUSE') {
+                continue;
+            }
+            throw error;
+        }
+    }
+
+    const error = new Error(`Ports ${BASE_PORT}-${BASE_PORT + PORT_FALLBACK_LIMIT - 1} are already in use.`);
+    error.code = 'EADDRINUSE';
+    throw error;
+}
+
+app.on('before-quit', () => {
+    if (serverInstance) {
+        serverInstance.close();
+        serverInstance = null;
+    }
+});
+
+app.on('window-all-closed', (event) => {
+    event.preventDefault();
+});
+
+if (gotLock) {
+    app.whenReady().then(boot);
+}

@@ -19,35 +19,39 @@ Since this tool runs **locally**, it uses your residential IP address, which You
 
 ## How to Use
 
-### Method 1: Local Install by Quick Start (recommended)
+### Method 1:  Desktop App (recommended, Mac only)
+Download the latest installer from GitHub Releases and launch the app. It starts the local server in the background (tray). No Node or Python required.
+
+On first run, the server downloads `yt-dlp` automatically. Updates are delivered through the app (GitHub Releases). Use the tray menu to open the browser UI.
+
+If port 3000 is busy, the app picks the next available port automatically, and the tray menu opens the correct URL.
+
+### Method 2: Local Install by "quickstart" (recommended)
 1. Install **Node.js 20+** (includes npm): https://nodejs.org/
-2. **macOS/Linux**: install **Python 3**: https://www.python.org/downloads/
-3. From the repo folder:
+2. On **macOS/Linux**, install **Python 3**: https://www.python.org/downloads/
+3. From the repo folder (use `cd`), run:
     ```bash
     npm run quickstart
     ```
 This runs a preflight check, installs dependencies, and starts the server.
 
-### Method 2: Local Install, Manual
+### Method 3: Local Install manually
 ```bash
 npm install
 npm start
 ```
-
-**To Restart:** If you need to stop or restart the server, simply press `Ctrl + C` in your terminal to stop it, then run `npm start` again.
-
+**To Restart:** If you need to stop or restart the server, simply press `Ctrl + C` in your terminal to stop it, then run `npm start` again.  
 **To Check:** If you want to check dependencies, run:
 ```bash
 npm run doctor
 ```
 
-### Method 3: Docker
+### Method 4: Docker
 If you already use Docker, you can run it without local Node/npm installs.  
 Requires Docker Desktop (or Docker Engine + Compose v2).
 ```bash
 docker compose up --build
 ```
-The server is then ready to go.
 
 ### Optional Environment Variables
 - `YTDLP_PATH`: Use an existing `yt-dlp` binary from a custom path.
