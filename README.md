@@ -19,12 +19,14 @@ Since this tool runs **locally**, it uses your residential IP address, which You
 
 ## How to Use
 
-### Method 1:  Desktop App (recommended, Mac only)
+### Method 1:  Desktop App (recommended)
 Download the latest installer from GitHub Releases and launch the app. It starts the local server in the background (tray). No Node or Python required.
 
 On first run, the server downloads `yt-dlp` automatically. Updates are delivered through the app (GitHub Releases). Use the tray menu to open the browser UI.
 
 If port 3000 is busy, the app picks the next available port automatically, and the tray menu opens the correct URL.
+
+Tested on macOS only. Please test on Windows and Linux.
 
 ### Method 2: Local Install by "quickstart" (recommended)
 1. Install **Node.js 20+** (includes npm): https://nodejs.org/
