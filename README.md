@@ -15,7 +15,7 @@
 
 ### What is yt-dlp?
 
-[yt-dlp](https://github.com/yt-dlp/yt-dlp) is a powerful, open-source command-line tool used to extract information and download media from YouTube and thousands of other sites. In this project, it is used as the core engine to fetch high-quality, timed transcripts while handling YouTube's complex anti-bot measures better than standard web crawlers.
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) is an open-source command-line tool for extracting info and media from YouTube and many other sites. Here, it powers transcript fetching and handles YouTube's anti-bot measures more reliably than typical web crawlers.
 
 <br>
 
@@ -24,11 +24,9 @@
 ### Method 1:  Desktop App (recommended)
 Download the latest installer from GitHub Releases and launch the app. It starts the local server in the background. No Node or Python required.
 
-Click the tray **app icon** to open the **menu** and launch the browser UI. If port 3000 is busy, the app picks the next available port automatically.
+Click the tray **app icon** to open the **menu** and launch the browser UI. ( If port 3000 is busy, the app picks the next available port automatically. )
 
 Updates are delivered through the app via GitHub Releases.
-
-(Tested on macOS only. Please test on Windows and Linux.)
 
 ### Method 2: Local Install by "quickstart" (recommended)
 1. Install **Node.js 20+** (includes npm): https://nodejs.org/
@@ -87,8 +85,17 @@ To keep Node isolated and avoid conflicts with other projects:
 
 <br>
 
-## Publishing a Release
+## Building and Releasing
 
+### Build the App
+To build the desktop app for your OS, install dependencies and run the build from the repo root:
+```bash
+npm install
+npm run dist
+```
+Build artifacts are written to `dist/`. The installer target depends on the OS you build on (macOS DMG, Windows NSIS, Linux AppImage).
+
+### Publishing a Release
 To publish a new release with app files reliably included, use the following commands:
 ```bash
 git tag v1.2.6
