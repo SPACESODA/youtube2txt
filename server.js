@@ -213,7 +213,17 @@ if (require.main === module) {
     });
 }
 
-module.exports = { startServer };
+module.exports = {
+    startServer,
+    _test: {
+        parseVTT,
+        sanitizeTranscriptText,
+        extractPlayerResponse,
+        pickCaptionLanguage,
+        extractCaptionTracks,
+        buildLanguageOptions
+    }
+};
 
 // --- HELPER FUNCTIONS ---
 

@@ -16,6 +16,7 @@ let currentPort = BASE_PORT;
 
 let tray = null;
 let serverInstance = null;
+let updateCheckInProgress = false;
 
 // Single-instance guard: second launch reuses the running server and opens the UI.
 const gotLock = app.requestSingleInstanceLock();
@@ -84,7 +85,7 @@ function buildTray() {
         { label: 'Open on Browser', click: openLocal }
     ];
     if (app.isPackaged) {
-        menuItems.push({ label: 'Check for Updates', click: () => autoUpdater.checkForUpdatesAndNotify() });
+        menuItems.push({ label: 'Check for Updates', click: checkForUpdatesWithFeedback });
     }
     menuItems.push(
         { type: 'separator' },
@@ -92,6 +93,85 @@ function buildTray() {
     );
     tray.setContextMenu(Menu.buildFromTemplate(menuItems));
     tray.on('double-click', openLocal);
+}
+
+function showUpdateMessage({ type, message, detail }) {
+    dialog.showMessageBox({
+        type,
+        buttons: ['OK'],
+        defaultId: 0,
+        cancelId: 0,
+        message,
+        detail
+    });
+}
+
+function checkForUpdatesWithFeedback() {
+    if (!app.isPackaged) {
+        showUpdateMessage({
+            type: 'info',
+            message: 'Updates are only available in packaged builds.'
+        });
+        return;
+    }
+    if (updateCheckInProgress) {
+        showUpdateMessage({
+            type: 'info',
+            message: 'Update check already in progress',
+            detail: 'Please wait for the current check to finish.'
+        });
+        return;
+    }
+
+    updateCheckInProgress = true;
+    const finish = () => {
+        updateCheckInProgress = false;
+        autoUpdater.removeListener('update-available', onUpdateAvailable);
+        autoUpdater.removeListener('update-not-available', onUpdateNotAvailable);
+        autoUpdater.removeListener('error', onUpdateError);
+    };
+
+    const onUpdateAvailable = (info) => {
+        showUpdateMessage({
+            type: 'info',
+            message: 'Update available',
+            detail: `Version ${info && info.version ? info.version : 'unknown'} found. Downloading now.`
+        });
+        finish();
+    };
+
+    const onUpdateNotAvailable = () => {
+        showUpdateMessage({
+            type: 'info',
+            message: 'No updates available',
+            detail: 'You are already on the latest version.'
+        });
+        finish();
+    };
+
+    const onUpdateError = (error) => {
+        const detail = error && error.message ? error.message : String(error);
+        showUpdateMessage({
+            type: 'error',
+            message: 'Update check failed',
+            detail
+        });
+        finish();
+    };
+
+    autoUpdater.on('update-available', onUpdateAvailable);
+    autoUpdater.on('update-not-available', onUpdateNotAvailable);
+    autoUpdater.on('error', onUpdateError);
+
+    autoUpdater.checkForUpdates().catch((error) => {
+        const detail = error && error.message ? error.message : String(error);
+        showUpdateMessage({
+            type: 'error',
+            message: 'Update check failed',
+            detail
+        });
+        finish();
+    });
 }
 
 function setupAutoUpdater() {

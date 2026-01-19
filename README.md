@@ -90,7 +90,9 @@ To keep Node isolated and avoid conflicts with other projects:
 ### Build the App
 To build the desktop app for your OS, install dependencies and run the build from the repo root:
 ```bash
+nvm use
 npm install
+npm test
 npm run dist
 ```
 Build artifacts are written to `dist/`. The installer target depends on the OS you build on (macOS DMG, Windows NSIS, Linux AppImage).

@@ -1,6 +1,6 @@
 {
   "name": "youtube2txt",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "description": "Local server for fetching YouTube transcripts",
   "author": "SPACESODA",
   "main": "server.js",
@@ -8,6 +8,7 @@
     "start": "node server.js",
     "doctor": "node scripts/doctor.js",
     "quickstart": "node scripts/quickstart.js",
+    "test": "node --test",
     "electron": "electron electron/main.js",
     "dist": "electron-builder && node scripts/cleanup-dist.js"
   },
@@ -45,13 +46,14 @@
         {
           "target": "dmg",
           "arch": [
-            "universal"
+            "x64",
+            "arm64"
           ]
         }
       ],
       "compression": "maximum",
       "category": "public.app-category.productivity",
-      "artifactName": "youtube2txt-v${version}-universal.${ext}"
+      "artifactName": "youtube2txt-v${version}-mac-${arch}.${ext}"
     },
     "win": {
       "target": [
