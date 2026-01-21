@@ -20,6 +20,7 @@ let serverInstance = null;
 let updateCheckInProgress = false;
 let backgroundCheckInProgress = false;
 let updateReadyInfo = null;
+let updateDownloadProgress = null;
 
 // Single-instance guard: second launch reuses the running server and opens the UI.
 const gotLock = app.requestSingleInstanceLock();
@@ -97,6 +98,8 @@ function updateTrayMenu() {
     ];
     if (updateReadyInfo) {
         menuItems.push({ label: 'Update ready to install', click: showUpdateReadyDialog });
+    } else if (typeof updateDownloadProgress === 'number') {
+        menuItems.push({ label: `Downloading update... ${updateDownloadProgress}%`, enabled: false });
     } else {
         menuItems.push({ label: 'Check for updates', click: checkForUpdatesWithFeedback });
     }
@@ -251,10 +254,26 @@ function setupAutoUpdater() {
     autoUpdater.autoDownload = true;
     autoUpdater.on('update-downloaded', async (info) => {
         updateReadyInfo = info || { version: 'unknown' };
+        updateDownloadProgress = null;
         updateTrayMenu();
         await cleanupOldUpdateCaches(info && info.downloadedFile);
     });
+    autoUpdater.on('update-available', () => {
+        updateDownloadProgress = 0;
+        updateTrayMenu();
+    });
+    autoUpdater.on('update-not-available', () => {
+        updateDownloadProgress = null;
+        updateTrayMenu();
+    });
+    autoUpdater.on('download-progress', (progress) => {
+        const percent = Math.max(0, Math.min(100, Math.round(progress && progress.percent ? progress.percent : 0)));
+        updateDownloadProgress = percent;
+        updateTrayMenu();
+    });
     autoUpdater.on('error', (error) => {
+        updateDownloadProgress = null;
+        updateTrayMenu();
         const detail = error && error.message ? error.message : String(error);
         console.error('[Updater] Error:', detail);
     });
