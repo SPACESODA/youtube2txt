@@ -12,6 +12,8 @@ const SERVER_HOST = '127.0.0.1';
 const BASE_PORT = 3000;
 const PORT_FALLBACK_LIMIT = 20;
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const UPDATER_LOG_MAX_BYTES = 128 * 1024;
+const UPDATER_LOG_KEEP_BYTES = 64 * 1024;
 
 let currentPort = BASE_PORT;
 
@@ -22,6 +24,7 @@ let backgroundCheckInProgress = false;
 let updateReadyInfo = null;
 let updateDownloadProgress = null;
 let updateAvailableVersion = null;
+let isQuitting = false;
 
 // Single-instance guard: second launch reuses the running server and opens the UI.
 const gotLock = app.requestSingleInstanceLock();
@@ -35,6 +38,39 @@ if (!gotLock) {
 
 function getAppRoot() {
     return app.isPackaged ? app.getAppPath() : path.join(__dirname, '..');
+}
+
+function getUpdaterLogPath() {
+    return path.join(app.getPath('userData'), 'updater.log');
+}
+
+async function appendUpdaterLog(message) {
+    const logPath = getUpdaterLogPath();
+    const line = `[${new Date().toISOString()}] ${message}\n`;
+    try {
+        let stat = null;
+        try {
+            stat = await fs.promises.stat(logPath);
+        } catch (error) {
+            if (!error || error.code !== 'ENOENT') {
+                throw error;
+            }
+        }
+        if (stat && stat.size > UPDATER_LOG_MAX_BYTES) {
+            const keepBytes = Math.min(UPDATER_LOG_KEEP_BYTES, stat.size);
+            const fileHandle = await fs.promises.open(logPath, 'r');
+            try {
+                const buffer = Buffer.alloc(keepBytes);
+                const { bytesRead } = await fileHandle.read(buffer, 0, keepBytes, stat.size - keepBytes);
+                await fs.promises.writeFile(logPath, buffer.slice(0, bytesRead));
+            } finally {
+                await fileHandle.close();
+            }
+        }
+        await fs.promises.appendFile(logPath, line, 'utf8');
+    } catch (error) {
+        console.error('[Updater] Log write failed:', error && error.message ? error.message : String(error));
+    }
 }
 
 function ensureDataDir() {
@@ -144,6 +180,7 @@ function checkForUpdatesWithFeedback() {
     }
 
     updateCheckInProgress = true;
+    appendUpdaterLog('Manual update check started.');
     const finish = () => {
         updateCheckInProgress = false;
         autoUpdater.removeListener('update-available', onUpdateAvailable);
@@ -151,7 +188,9 @@ function checkForUpdatesWithFeedback() {
         autoUpdater.removeListener('error', onUpdateError);
     };
 
-    const onUpdateAvailable = () => {
+    const onUpdateAvailable = (info) => {
+        const version = info && info.version ? info.version : 'unknown';
+        appendUpdaterLog(`Update available: v${version}.`);
         showUpdateMessage({
             type: 'info',
             message: 'Update available',
@@ -161,6 +200,7 @@ function checkForUpdatesWithFeedback() {
     };
 
     const onUpdateNotAvailable = () => {
+        appendUpdaterLog('No update available.');
         showUpdateMessage({
             type: 'info',
             message: 'No updates available',
@@ -171,6 +211,7 @@ function checkForUpdatesWithFeedback() {
 
     const onUpdateError = (error) => {
         const detail = error && error.message ? error.message : String(error);
+        appendUpdaterLog(`Update check failed: ${detail}`);
         showUpdateMessage({
             type: 'error',
             message: 'Update check failed',
@@ -185,6 +226,7 @@ function checkForUpdatesWithFeedback() {
 
     autoUpdater.checkForUpdates().catch((error) => {
         const detail = error && error.message ? error.message : String(error);
+        appendUpdaterLog(`Update check failed: ${detail}`);
         showUpdateMessage({
             type: 'error',
             message: 'Update check failed',
@@ -202,6 +244,7 @@ function checkForUpdatesInBackground() {
         .catch((error) => {
             const detail = error && error.message ? error.message : String(error);
             console.error('[Updater] Background check failed:', detail);
+            appendUpdaterLog(`Background update check failed: ${detail}`);
         })
         .finally(() => {
             backgroundCheckInProgress = false;
@@ -249,6 +292,9 @@ async function showUpdateReadyDialog() {
         detail: 'Restart the app to install the latest update.'
     });
     if (result.response === 0) {
+        const version = updateReadyInfo && updateReadyInfo.version ? updateReadyInfo.version : 'unknown';
+        console.log(`[Updater] Restart requested for v${version}.`);
+        appendUpdaterLog(`Restart requested for v${version}.`);
         autoUpdater.quitAndInstall();
     }
 }
@@ -261,17 +307,22 @@ function setupAutoUpdater() {
         updateReadyInfo = info || { version: 'unknown' };
         updateDownloadProgress = null;
         updateAvailableVersion = info && info.version ? info.version : updateAvailableVersion;
+        const version = info && info.version ? info.version : 'unknown';
+        appendUpdaterLog(`Update downloaded: v${version}.`);
         updateTrayMenu();
         await cleanupOldUpdateCaches(info && info.downloadedFile);
     });
     autoUpdater.on('update-not-available', () => {
         updateDownloadProgress = null;
         updateAvailableVersion = null;
+        appendUpdaterLog('No update available (background).');
         updateTrayMenu();
     });
     autoUpdater.on('update-available', (info) => {
         updateDownloadProgress = 0;
         updateAvailableVersion = info && info.version ? info.version : null;
+        const version = info && info.version ? info.version : 'unknown';
+        appendUpdaterLog(`Update available (background): v${version}.`);
         updateTrayMenu();
     });
     autoUpdater.on('download-progress', (progress) => {
@@ -285,6 +336,7 @@ function setupAutoUpdater() {
         updateTrayMenu();
         const detail = error && error.message ? error.message : String(error);
         console.error('[Updater] Error:', detail);
+        appendUpdaterLog(`Updater error: ${detail}`);
     });
 }
 
@@ -371,6 +423,7 @@ async function startServerWithFallback({ dataDir, appRoot }) {
 }
 
 app.on('before-quit', () => {
+    isQuitting = true;
     if (serverInstance) {
         serverInstance.close();
         serverInstance = null;
@@ -378,7 +431,9 @@ app.on('before-quit', () => {
 });
 
 app.on('window-all-closed', (event) => {
-    event.preventDefault();
+    if (!isQuitting) {
+        event.preventDefault();
+    }
 });
 
 if (gotLock) {

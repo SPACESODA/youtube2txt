@@ -24,7 +24,7 @@
 ### Method 1:  Desktop App (recommended)
 Download the latest installer from GitHub Releases and launch the app. It starts the local server in the background. No Node or Python required.
 
-Click the tray **app icon** to open the **menu** and launch the browser UI. ( If port 3000 is busy, the app picks the next available port automatically. )
+Click the tray **app icon** to open the **menu** and launch the browser UI. (If port 3000 is busy, the app picks the next available port automatically.)
 
 Updates are delivered through the app via GitHub Releases.
 
@@ -94,14 +94,23 @@ nvm use
 npm install
 npm test
 npm run dist
+
+# On macOS only:
+# Apple Silicon DMG only (fast local install)
+npm run dist:mac-arm64
+# Intel DMG only (fast local install)
+npm run dist:mac-x64
+# Updater artifacts for local update tests (latest-mac.yml + zip, can take quite a while)
+npm run dist:mac-update-arm64
+npm run dist:mac-update-x64
 ```
 Build artifacts are written to `dist/`. The installer target depends on the OS you build on (macOS DMG, Windows NSIS, Linux AppImage).
 
 ### Publishing a Release
 To publish a new release with app files reliably included, use the following commands:
 ```bash
-git tag v1.2.6
-git push origin v1.2.6
+git tag v1.3.8
+git push origin v1.3.8
 ```
 
 <br>
