@@ -22,6 +22,9 @@ function applyRuntimeConfig(options = {}) {
     const dataDir = options.dataDir
         ? path.resolve(options.dataDir)
         : (process.env.YT2TXT_DATA_DIR ? path.resolve(process.env.YT2TXT_DATA_DIR) : appRoot);
+    if (DATA_DIR !== dataDir) {
+        ytdlpSetupPromise = null;
+    }
     DATA_DIR = dataDir;
     PUBLIC_DIR = options.publicDir ? path.resolve(options.publicDir) : path.join(appRoot, 'public');
     BIN_DIR = path.join(DATA_DIR, 'bin');

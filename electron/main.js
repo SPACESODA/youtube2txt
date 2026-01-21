@@ -76,7 +76,9 @@ function openLocal() {
 
 function buildTray() {
     // Tray-only app: no windows, just menu actions.
-    const iconPath = path.join(getAppRoot(), 'public', 'assets', 'favicon-16x16.png');
+    const iconPath = process.platform === 'win32'
+        ? path.join(getAppRoot(), 'public', 'assets', 'favicon.ico')
+        : path.join(getAppRoot(), 'public', 'assets', 'favicon-16x16.png');
     const baseIcon = nativeImage.createFromPath(iconPath);
     const targetSize = process.platform === 'darwin' ? 16 : 24;
     const trayIcon = baseIcon.isEmpty()
@@ -145,7 +147,7 @@ function checkForUpdatesWithFeedback() {
         showUpdateMessage({
             type: 'info',
             message: 'Update available',
-            detail: 'Update available. Downloading...'
+            detail: 'Downloading update...'
         });
         finish();
     };
@@ -198,30 +200,10 @@ function checkForUpdatesInBackground() {
         });
 }
 
-async function getCachedUpdateFileName(cacheDir) {
-    const infoPath = path.join(cacheDir, 'update-info.json');
-    try {
-        const raw = await fs.promises.readFile(infoPath, 'utf8');
-        const info = JSON.parse(raw);
-        if (info && typeof info.fileName === 'string' && info.fileName) {
-            return info.fileName;
-        }
-    } catch (error) {
-        if (!(error && error.code === 'ENOENT')) {
-            console.error('[Updater] Cache cleanup failed:', error && error.message ? error.message : String(error));
-        }
-    }
-    return null;
-}
-
-async function cleanupOldUpdateCaches({ downloadedFile, pendingDir }) {
-    const cacheDir = pendingDir || (downloadedFile ? path.dirname(downloadedFile) : null);
-    if (!cacheDir) return;
-
-    const updateFileName = downloadedFile
-        ? path.basename(downloadedFile)
-        : await getCachedUpdateFileName(cacheDir);
-    if (!updateFileName) return;
+async function cleanupOldUpdateCaches(downloadedFile) {
+    if (!downloadedFile) return;
+    const cacheDir = path.dirname(downloadedFile);
+    const updateFileName = path.basename(downloadedFile);
     const keepNames = new Set();
     keepNames.add('update-info.json');
     keepNames.add('current.blockmap');
@@ -237,9 +219,8 @@ async function cleanupOldUpdateCaches({ downloadedFile, pendingDir }) {
         return;
     }
 
-    const shouldKeep = keepNames.size > 0;
     await Promise.all(entries.map(async (entry) => {
-        if (shouldKeep && (keepNames.has(entry.name) || entry.name.startsWith('package-'))) return;
+        if (keepNames.has(entry.name) || entry.name.startsWith('package-')) return;
         const entryPath = path.join(cacheDir, entry.name);
         try {
             await fs.promises.rm(entryPath, { recursive: true, force: true });
@@ -247,18 +228,6 @@ async function cleanupOldUpdateCaches({ downloadedFile, pendingDir }) {
             console.error('[Updater] Cache cleanup failed:', error && error.message ? error.message : String(error));
         }
     }));
-}
-
-async function cleanupUpdateCachesOnLaunch() {
-    if (!app.isPackaged) return;
-    if (typeof autoUpdater.getOrCreateDownloadHelper !== 'function') return;
-    try {
-        const helper = await autoUpdater.getOrCreateDownloadHelper();
-        if (!helper || !helper.cacheDirForPendingUpdate) return;
-        await cleanupOldUpdateCaches({ pendingDir: helper.cacheDirForPendingUpdate });
-    } catch (error) {
-        console.error('[Updater] Cache cleanup failed:', error && error.message ? error.message : String(error));
-    }
 }
 
 async function showUpdateReadyDialog() {
@@ -280,11 +249,10 @@ function setupAutoUpdater() {
     // Updates only work for packaged builds with GitHub Releases.
     if (!app.isPackaged) return;
     autoUpdater.autoDownload = true;
-    cleanupUpdateCachesOnLaunch();
     autoUpdater.on('update-downloaded', async (info) => {
         updateReadyInfo = info || { version: 'unknown' };
         updateTrayMenu();
-        await cleanupOldUpdateCaches({ downloadedFile: info && info.downloadedFile });
+        await cleanupOldUpdateCaches(info && info.downloadedFile);
     });
     autoUpdater.on('error', (error) => {
         const detail = error && error.message ? error.message : String(error);

@@ -13,6 +13,17 @@ const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 
 const child = spawn(electronPath, args, { stdio: 'inherit', env });
+child.on('error', (error) => {
+    console.error('Failed to launch Electron:', error.message || error);
+    process.exit(1);
+});
+['SIGINT', 'SIGTERM'].forEach((signal) => {
+    process.on(signal, () => {
+        if (!child.killed) {
+            child.kill(signal);
+        }
+    });
+});
 child.on('close', (code, signal) => {
     if (code === null) {
         console.error(electronPath, 'exited with signal', signal);
