@@ -1,6 +1,6 @@
 {
   "name": "youtube2txt",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Local server for fetching YouTube transcripts",
   "author": "SPACESODA",
   "main": "server.js",
@@ -9,7 +9,7 @@
     "doctor": "node scripts/doctor.js",
     "quickstart": "node scripts/quickstart.js",
     "test": "node --test",
-    "electron": "electron electron/main.js",
+    "electron": "node scripts/run-electron.js",
     "dist": "electron-builder && node scripts/cleanup-dist.js"
   },
   "engines": {

@@ -15,6 +15,7 @@ let DATA_DIR = __dirname;
 let PUBLIC_DIR = path.join(__dirname, 'public');
 let BIN_DIR = path.join(DATA_DIR, 'bin');
 let LOCAL_YTDLP_PATH = path.join(DATA_DIR, LOCAL_YTDLP_BASENAME);
+let ytdlpSetupPromise = null;
 
 function applyRuntimeConfig(options = {}) {
     const appRoot = options.appRoot ? path.resolve(options.appRoot) : __dirname;
@@ -71,36 +72,38 @@ function setupPython() {
 
 // 2. Download yt-dlp binary if missing
 function setupYtDlp() {
-    const configuredPath = process.env.YTDLP_PATH;
-    if (configuredPath && fs.existsSync(configuredPath)) {
-        YTDLP_PATH = configuredPath;
-        console.log(`[Server] Using yt-dlp from YTDLP_PATH: ${YTDLP_PATH}`);
-        return Promise.resolve();
-    }
+    if (ytdlpSetupPromise) return ytdlpSetupPromise;
+    ytdlpSetupPromise = (async () => {
+        const configuredPath = process.env.YTDLP_PATH;
+        if (configuredPath && fs.existsSync(configuredPath)) {
+            YTDLP_PATH = configuredPath;
+            console.log(`[Server] Using yt-dlp from YTDLP_PATH: ${YTDLP_PATH}`);
+            return;
+        }
 
-    if (fs.existsSync(LOCAL_YTDLP_PATH)) {
-        YTDLP_PATH = LOCAL_YTDLP_PATH;
-        console.log('[Server] yt-dlp binary exists locally.');
-        return Promise.resolve();
-    }
+        if (fs.existsSync(LOCAL_YTDLP_PATH)) {
+            YTDLP_PATH = LOCAL_YTDLP_PATH;
+            console.log('[Server] yt-dlp binary exists locally.');
+            return;
+        }
 
-    const pathCandidate = findExecutableInPath(process.platform === 'win32' ? ['yt-dlp.exe', 'yt-dlp'] : ['yt-dlp']);
-    if (pathCandidate) {
-        YTDLP_PATH = pathCandidate;
-        console.log(`[Server] Using yt-dlp from PATH: ${YTDLP_PATH}`);
-        return Promise.resolve();
-    }
+        const pathCandidate = findExecutableInPath(process.platform === 'win32' ? ['yt-dlp.exe', 'yt-dlp'] : ['yt-dlp']);
+        if (pathCandidate) {
+            YTDLP_PATH = pathCandidate;
+            console.log(`[Server] Using yt-dlp from PATH: ${YTDLP_PATH}`);
+            return;
+        }
 
-    console.log('[Server] Downloading yt-dlp binary...');
-    const url = getYtDlpDownloadUrl();
-    const tempPath = `${LOCAL_YTDLP_PATH}.tmp`;
-    try {
-        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    } catch (e) {
-        // Ignore temp cleanup errors.
-    }
+        console.log('[Server] Downloading yt-dlp binary...');
+        const url = getYtDlpDownloadUrl();
+        const tempPath = `${LOCAL_YTDLP_PATH}.tmp`;
+        try {
+            if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        } catch (e) {
+            // Ignore temp cleanup errors.
+        }
 
-    return downloadFile(url, tempPath).then(() => {
+        await downloadFile(url, tempPath);
         fs.renameSync(tempPath, LOCAL_YTDLP_PATH);
         if (process.platform !== 'win32') {
             // Restrict executable permissions to the owner to reduce exposure if the binary is compromised.
@@ -108,7 +111,12 @@ function setupYtDlp() {
         }
         YTDLP_PATH = LOCAL_YTDLP_PATH;
         console.log('[Server] yt-dlp downloaded and executable.');
+    })().catch((error) => {
+        ytdlpSetupPromise = null;
+        throw error;
     });
+
+    return ytdlpSetupPromise;
 }
 
 function createApp(options = {}) {

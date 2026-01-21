@@ -19,6 +19,7 @@ let tray = null;
 let serverInstance = null;
 let updateCheckInProgress = false;
 let backgroundCheckInProgress = false;
+let updateReadyInfo = null;
 
 // Single-instance guard: second launch reuses the running server and opens the UI.
 const gotLock = app.requestSingleInstanceLock();
@@ -83,18 +84,25 @@ function buildTray() {
         : baseIcon.resize({ width: targetSize, height: targetSize });
     tray = new Tray(trayIcon);
     tray.setToolTip('youtube2txt');
+    updateTrayMenu();
+    tray.on('double-click', openLocal);
+}
+
+function updateTrayMenu() {
+    if (!tray) return;
     const menuItems = [
-        { label: 'Open on Browser', click: openLocal }
+        { label: 'Open on browser', click: openLocal }
     ];
-    if (app.isPackaged) {
-        menuItems.push({ label: 'Check for Updates', click: checkForUpdatesWithFeedback });
+    if (updateReadyInfo) {
+        menuItems.push({ label: 'Update ready to install', click: showUpdateReadyDialog });
+    } else {
+        menuItems.push({ label: 'Check for updates', click: checkForUpdatesWithFeedback });
     }
     menuItems.push(
         { type: 'separator' },
         { label: 'Quit', click: () => app.quit() }
     );
     tray.setContextMenu(Menu.buildFromTemplate(menuItems));
-    tray.on('double-click', openLocal);
 }
 
 function showUpdateMessage({ type, message, detail }) {
@@ -133,11 +141,11 @@ function checkForUpdatesWithFeedback() {
         autoUpdater.removeListener('error', onUpdateError);
     };
 
-    const onUpdateAvailable = (info) => {
+    const onUpdateAvailable = () => {
         showUpdateMessage({
             type: 'info',
             message: 'Update available',
-            detail: `Version ${info && info.version ? info.version : 'unknown'} found. Downloading now.`
+            detail: 'Update available. Downloading...'
         });
         finish();
     };
@@ -253,24 +261,30 @@ async function cleanupUpdateCachesOnLaunch() {
     }
 }
 
+async function showUpdateReadyDialog() {
+    if (!updateReadyInfo) return;
+    const result = await dialog.showMessageBox({
+        type: 'info',
+        buttons: ['Restart', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+        message: 'Update ready to install',
+        detail: 'Restart the app to install the latest update.'
+    });
+    if (result.response === 0) {
+        autoUpdater.quitAndInstall();
+    }
+}
+
 function setupAutoUpdater() {
     // Updates only work for packaged builds with GitHub Releases.
     if (!app.isPackaged) return;
     autoUpdater.autoDownload = true;
     cleanupUpdateCachesOnLaunch();
     autoUpdater.on('update-downloaded', async (info) => {
-        const result = await dialog.showMessageBox({
-            type: 'info',
-            buttons: ['Restart', 'Later'],
-            defaultId: 0,
-            cancelId: 1,
-            message: 'Update ready to install',
-            detail: 'Restart the app to install the latest update.'
-        });
+        updateReadyInfo = info || { version: 'unknown' };
+        updateTrayMenu();
         await cleanupOldUpdateCaches({ downloadedFile: info && info.downloadedFile });
-        if (result.response === 0) {
-            autoUpdater.quitAndInstall();
-        }
     });
     autoUpdater.on('error', (error) => {
         const detail = error && error.message ? error.message : String(error);
@@ -325,7 +339,7 @@ async function boot() {
 
     buildTray();
     if (app.isPackaged) {
-        // Silent background check/download; UI remains driven by the tray action + update-downloaded prompt.
+        // Silent background check/download; UI is surfaced via the tray menu item when ready.
         checkForUpdatesInBackground();
         setInterval(checkForUpdatesInBackground, ONE_WEEK_MS);
     }
