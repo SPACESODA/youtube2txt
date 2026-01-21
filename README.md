@@ -26,8 +26,6 @@ Download the latest installer from GitHub Releases and launch the app. It starts
 
 Click the tray **app icon** to open the **menu** and launch the browser UI. (If port 3000 is busy, the app picks the next available port automatically.)
 
-Updates are delivered through the app via GitHub Releases.
-
 ### Method 2: Local Install by "quickstart" (recommended)
 1. Install **Node.js 20+** (includes npm): https://nodejs.org/
 2. On **macOS/Linux**, install **Python 3**: https://www.python.org/downloads/

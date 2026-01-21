@@ -12,6 +12,8 @@ const SERVER_HOST = '127.0.0.1';
 const BASE_PORT = 3000;
 const PORT_FALLBACK_LIMIT = 20;
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const IS_MAC = process.platform === 'darwin';
+const RELEASES_URL = 'https://github.com/SPACESODA/youtube2txt/releases';
 const UPDATER_LOG_MAX_BYTES = 128 * 1024;
 const UPDATER_LOG_KEEP_BYTES = 64 * 1024;
 
@@ -112,6 +114,10 @@ function openLocal() {
     shell.openExternal(getServerUrl('localhost'));
 }
 
+function openReleasesPage() {
+    shell.openExternal(RELEASES_URL);
+}
+
 function buildTray() {
     // Tray-only app: no windows, just menu actions.
     const iconPath = process.platform === 'win32'
@@ -133,16 +139,24 @@ function updateTrayMenu() {
     const menuItems = [
         { label: 'Open on browser', click: openLocal }
     ];
+    const currentVersion = app && typeof app.getVersion === 'function' ? app.getVersion() : null;
+    const hasUpdate = Boolean(updateReadyInfo || updateAvailableVersion || typeof updateDownloadProgress === 'number');
     if (updateReadyInfo) {
         menuItems.push({ label: 'Update ready to install', click: showUpdateReadyDialog });
-    } else if (typeof updateDownloadProgress === 'number') {
-        const currentVersion = app && typeof app.getVersion === 'function' ? app.getVersion() : null;
-        if (currentVersion && updateAvailableVersion) {
-            menuItems.push({ label: `v${currentVersion} -> v${updateAvailableVersion}`, enabled: false });
-        }
+    }
+    if (currentVersion && updateAvailableVersion) {
+        menuItems.push({ label: `v${currentVersion} -> v${updateAvailableVersion}`, enabled: false });
+    }
+    if (typeof updateDownloadProgress === 'number') {
         menuItems.push({ label: `Downloading update... ${updateDownloadProgress}%`, enabled: false });
+    }
+    if (hasUpdate) {
+        menuItems.push({ label: 'Download the latest version', click: openReleasesPage });
     } else {
         menuItems.push({ label: 'Check for updates', click: checkForUpdatesWithFeedback });
+        if (currentVersion) {
+            menuItems.push({ label: `v${currentVersion} (latest)`, enabled: false });
+        }
     }
     menuItems.push(
         { type: 'separator' },
@@ -194,7 +208,7 @@ function checkForUpdatesWithFeedback() {
         showUpdateMessage({
             type: 'info',
             message: 'Update available',
-            detail: 'Downloading update...'
+            detail: IS_MAC ? 'Download the latest version from GitHub.' : 'Downloading update...'
         });
         finish();
     };
@@ -302,16 +316,23 @@ async function showUpdateReadyDialog() {
 function setupAutoUpdater() {
     // Updates only work for packaged builds with GitHub Releases.
     if (!app.isPackaged) return;
-    autoUpdater.autoDownload = true;
-    autoUpdater.on('update-downloaded', async (info) => {
-        updateReadyInfo = info || { version: 'unknown' };
-        updateDownloadProgress = null;
-        updateAvailableVersion = info && info.version ? info.version : updateAvailableVersion;
-        const version = info && info.version ? info.version : 'unknown';
-        appendUpdaterLog(`Update downloaded: v${version}.`);
-        updateTrayMenu();
-        await cleanupOldUpdateCaches(info && info.downloadedFile);
-    });
+    autoUpdater.autoDownload = !IS_MAC;
+    if (!IS_MAC) {
+        autoUpdater.on('update-downloaded', async (info) => {
+            updateReadyInfo = info || { version: 'unknown' };
+            updateDownloadProgress = null;
+            updateAvailableVersion = info && info.version ? info.version : updateAvailableVersion;
+            const version = info && info.version ? info.version : 'unknown';
+            appendUpdaterLog(`Update downloaded: v${version}.`);
+            updateTrayMenu();
+            await cleanupOldUpdateCaches(info && info.downloadedFile);
+        });
+        autoUpdater.on('download-progress', (progress) => {
+            const percent = Math.max(0, Math.min(100, Math.round(progress && progress.percent ? progress.percent : 0)));
+            updateDownloadProgress = percent;
+            updateTrayMenu();
+        });
+    }
     autoUpdater.on('update-not-available', () => {
         updateDownloadProgress = null;
         updateAvailableVersion = null;
@@ -319,15 +340,10 @@ function setupAutoUpdater() {
         updateTrayMenu();
     });
     autoUpdater.on('update-available', (info) => {
-        updateDownloadProgress = 0;
+        updateDownloadProgress = IS_MAC ? null : 0;
         updateAvailableVersion = info && info.version ? info.version : null;
         const version = info && info.version ? info.version : 'unknown';
         appendUpdaterLog(`Update available (background): v${version}.`);
-        updateTrayMenu();
-    });
-    autoUpdater.on('download-progress', (progress) => {
-        const percent = Math.max(0, Math.min(100, Math.round(progress && progress.percent ? progress.percent : 0)));
-        updateDownloadProgress = percent;
         updateTrayMenu();
     });
     autoUpdater.on('error', (error) => {
