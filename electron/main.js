@@ -21,6 +21,7 @@ let updateCheckInProgress = false;
 let backgroundCheckInProgress = false;
 let updateReadyInfo = null;
 let updateDownloadProgress = null;
+let updateAvailableVersion = null;
 
 // Single-instance guard: second launch reuses the running server and opens the UI.
 const gotLock = app.requestSingleInstanceLock();
@@ -99,6 +100,10 @@ function updateTrayMenu() {
     if (updateReadyInfo) {
         menuItems.push({ label: 'Update ready to install', click: showUpdateReadyDialog });
     } else if (typeof updateDownloadProgress === 'number') {
+        const currentVersion = app && typeof app.getVersion === 'function' ? app.getVersion() : null;
+        if (currentVersion && updateAvailableVersion) {
+            menuItems.push({ label: `v${currentVersion} -> v${updateAvailableVersion}`, enabled: false });
+        }
         menuItems.push({ label: `Downloading update... ${updateDownloadProgress}%`, enabled: false });
     } else {
         menuItems.push({ label: 'Check for updates', click: checkForUpdatesWithFeedback });
@@ -255,15 +260,18 @@ function setupAutoUpdater() {
     autoUpdater.on('update-downloaded', async (info) => {
         updateReadyInfo = info || { version: 'unknown' };
         updateDownloadProgress = null;
+        updateAvailableVersion = info && info.version ? info.version : updateAvailableVersion;
         updateTrayMenu();
         await cleanupOldUpdateCaches(info && info.downloadedFile);
     });
-    autoUpdater.on('update-available', () => {
-        updateDownloadProgress = 0;
-        updateTrayMenu();
-    });
     autoUpdater.on('update-not-available', () => {
         updateDownloadProgress = null;
+        updateAvailableVersion = null;
+        updateTrayMenu();
+    });
+    autoUpdater.on('update-available', (info) => {
+        updateDownloadProgress = 0;
+        updateAvailableVersion = info && info.version ? info.version : null;
         updateTrayMenu();
     });
     autoUpdater.on('download-progress', (progress) => {
@@ -273,6 +281,7 @@ function setupAutoUpdater() {
     });
     autoUpdater.on('error', (error) => {
         updateDownloadProgress = null;
+        updateAvailableVersion = null;
         updateTrayMenu();
         const detail = error && error.message ? error.message : String(error);
         console.error('[Updater] Error:', detail);
