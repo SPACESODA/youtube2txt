@@ -11,12 +11,14 @@ const { startServer } = require('../server');
 const SERVER_HOST = '127.0.0.1';
 const BASE_PORT = 3000;
 const PORT_FALLBACK_LIMIT = 20;
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 let currentPort = BASE_PORT;
 
 let tray = null;
 let serverInstance = null;
 let updateCheckInProgress = false;
+let backgroundCheckInProgress = false;
 
 // Single-instance guard: second launch reuses the running server and opens the UI.
 const gotLock = app.requestSingleInstanceLock();
@@ -114,7 +116,7 @@ function checkForUpdatesWithFeedback() {
         });
         return;
     }
-    if (updateCheckInProgress) {
+    if (updateCheckInProgress || backgroundCheckInProgress) {
         showUpdateMessage({
             type: 'info',
             message: 'Update check already in progress',
@@ -174,11 +176,89 @@ function checkForUpdatesWithFeedback() {
     });
 }
 
+function checkForUpdatesInBackground() {
+    if (!app.isPackaged) return;
+    if (updateCheckInProgress || backgroundCheckInProgress) return;
+    backgroundCheckInProgress = true;
+    autoUpdater.checkForUpdates()
+        .catch((error) => {
+            const detail = error && error.message ? error.message : String(error);
+            console.error('[Updater] Background check failed:', detail);
+        })
+        .finally(() => {
+            backgroundCheckInProgress = false;
+        });
+}
+
+async function getCachedUpdateFileName(cacheDir) {
+    const infoPath = path.join(cacheDir, 'update-info.json');
+    try {
+        const raw = await fs.promises.readFile(infoPath, 'utf8');
+        const info = JSON.parse(raw);
+        if (info && typeof info.fileName === 'string' && info.fileName) {
+            return info.fileName;
+        }
+    } catch (error) {
+        if (!(error && error.code === 'ENOENT')) {
+            console.error('[Updater] Cache cleanup failed:', error && error.message ? error.message : String(error));
+        }
+    }
+    return null;
+}
+
+async function cleanupOldUpdateCaches({ downloadedFile, pendingDir }) {
+    const cacheDir = pendingDir || (downloadedFile ? path.dirname(downloadedFile) : null);
+    if (!cacheDir) return;
+
+    const updateFileName = downloadedFile
+        ? path.basename(downloadedFile)
+        : await getCachedUpdateFileName(cacheDir);
+    if (!updateFileName) return;
+    const keepNames = new Set();
+    keepNames.add('update-info.json');
+    keepNames.add('current.blockmap');
+    keepNames.add(updateFileName);
+    keepNames.add(`${updateFileName}.blockmap`);
+
+    let entries = [];
+    try {
+        entries = await fs.promises.readdir(cacheDir, { withFileTypes: true });
+    } catch (error) {
+        if (error && error.code === 'ENOENT') return;
+        console.error('[Updater] Cache cleanup failed:', error && error.message ? error.message : String(error));
+        return;
+    }
+
+    const shouldKeep = keepNames.size > 0;
+    await Promise.all(entries.map(async (entry) => {
+        if (shouldKeep && (keepNames.has(entry.name) || entry.name.startsWith('package-'))) return;
+        const entryPath = path.join(cacheDir, entry.name);
+        try {
+            await fs.promises.rm(entryPath, { recursive: true, force: true });
+        } catch (error) {
+            console.error('[Updater] Cache cleanup failed:', error && error.message ? error.message : String(error));
+        }
+    }));
+}
+
+async function cleanupUpdateCachesOnLaunch() {
+    if (!app.isPackaged) return;
+    if (typeof autoUpdater.getOrCreateDownloadHelper !== 'function') return;
+    try {
+        const helper = await autoUpdater.getOrCreateDownloadHelper();
+        if (!helper || !helper.cacheDirForPendingUpdate) return;
+        await cleanupOldUpdateCaches({ pendingDir: helper.cacheDirForPendingUpdate });
+    } catch (error) {
+        console.error('[Updater] Cache cleanup failed:', error && error.message ? error.message : String(error));
+    }
+}
+
 function setupAutoUpdater() {
     // Updates only work for packaged builds with GitHub Releases.
     if (!app.isPackaged) return;
     autoUpdater.autoDownload = true;
-    autoUpdater.on('update-downloaded', async () => {
+    cleanupUpdateCachesOnLaunch();
+    autoUpdater.on('update-downloaded', async (info) => {
         const result = await dialog.showMessageBox({
             type: 'info',
             buttons: ['Restart', 'Later'],
@@ -187,6 +267,7 @@ function setupAutoUpdater() {
             message: 'Update ready to install',
             detail: 'Restart the app to install the latest update.'
         });
+        await cleanupOldUpdateCaches({ downloadedFile: info && info.downloadedFile });
         if (result.response === 0) {
             autoUpdater.quitAndInstall();
         }
@@ -200,6 +281,9 @@ function setupAutoUpdater() {
 async function boot() {
     // Start local server, wait for readiness, then keep the tray ready for the user to open the UI.
     app.setAppUserModelId('com.spacesoda.youtube2txt');
+    if (process.platform === 'darwin' && app.dock) {
+        app.dock.hide();
+    }
     setupAutoUpdater();
 
     const dataDir = ensureDataDir();
@@ -241,7 +325,9 @@ async function boot() {
 
     buildTray();
     if (app.isPackaged) {
-        autoUpdater.checkForUpdatesAndNotify();
+        // Silent background check/download; UI remains driven by the tray action + update-downloaded prompt.
+        checkForUpdatesInBackground();
+        setInterval(checkForUpdatesInBackground, ONE_WEEK_MS);
     }
 }
 
