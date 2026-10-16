@@ -22,12 +22,12 @@
 ## How to Use
 
 ### Method 1:  Desktop App (recommended)
-Download the latest installer from GitHub Releases and launch the app. It starts the local server in the background. No Node or Python required.
+Download the latest installer from GitHub Releases and launch the app. It starts the local server in the background. No Node or Python required. The macOS app requires macOS 13 (Ventura) or later.
 
 Click the tray **app icon** to open the **menu** and launch the browser UI. (If port 3000 is busy, the app picks the next available port automatically.)
 
 ### Method 2: Local Install by "quickstart" (recommended)
-1. Install **Node.js 20+** (includes npm): https://nodejs.org/
+1. Install **Node.js 24+** (includes npm): https://nodejs.org/
 2. On **macOS/Linux**, install **Python 3**: https://www.python.org/downloads/
 3. From the repo folder (use `cd`), run:
     ```bash
@@ -72,10 +72,10 @@ Access the tool at `http://localhost:3000`, or use the hosted page which include
 To keep Node isolated and avoid conflicts with other projects:
 - **nvm (macOS/Linux)**: run `nvm install` then `nvm use` (this repo includes `.nvmrc`).
 - **nvm-windows**: https://github.com/coreybutler/nvm-windows
-- **Volta (macOS/Windows/Linux)**: https://volta.sh (this repo pins Node 20 via `package.json`).
+- **Volta (macOS/Windows/Linux)**: https://volta.sh (this repo pins Node 24 via `package.json`).
 
 ### Troubleshooting
-- `node: command not found` or `npm not found`: install Node.js 20+ from https://nodejs.org/
+- `node: command not found` or `npm not found`: install Node.js 24+ from https://nodejs.org/
 - `python3: command not found` or `Python was not found`: install Python 3 (macOS/Linux only).
 - `EACCES` or `EPERM`: permissions issue. Avoid sudo; try deleting `node_modules` and re-running.
 - `EADDRINUSE`: port 3000 is busy. Run with `PORT=3001 npm start`.
@@ -103,6 +103,9 @@ npm run dist:mac-update-arm64
 npm run dist:mac-update-x64
 ```
 Build artifacts are written to `dist/`. The installer target depends on the OS you build on (macOS DMG, Windows NSIS, Linux AppImage).
+
+### Dependency security
+Run `npm audit` after updating dependencies. The `@electron/get` override in `package.json` keeps the build downloader on `global-agent` 4.1.3+ to remove the vulnerable `roarr` / `sprintf-js` chain. Remove it when electron-builder adopts a dependency chain that no longer needs it.
 
 ### Publishing a Release
 To publish a new release with app files reliably included, use the following commands:

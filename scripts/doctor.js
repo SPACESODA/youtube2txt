@@ -5,7 +5,7 @@ const path = require('path');
 const net = require('net');
 const { spawnSync } = require('child_process');
 
-const REQUIRED_NODE_MAJOR = 20;
+const REQUIRED_NODE_MAJOR = 24;
 const PORT = Number(process.env.PORT) || 3000;
 const repoRoot = path.resolve(__dirname, '..');
 
