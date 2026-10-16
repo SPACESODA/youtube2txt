@@ -41,7 +41,7 @@ function printHints(output) {
     const hints = [];
 
     if (text.includes('unsupported engine') || text.includes('not compatible with your version of node')) {
-        hints.push('Use Node.js 20+ for this project.');
+        hints.push('Use Node.js 24+ for this project.');
     }
     if (text.includes('eacces') || text.includes('eperm')) {
         hints.push('Permissions error. Avoid sudo; try deleting node_modules and re-running.');
