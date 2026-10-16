@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to publish (e.g. v1.3.9)'
-        required: false
+        description: 'Existing release tag to build (e.g. v1.4.1)'
+        required: true
 
 permissions:
   contents: write
@@ -32,12 +32,43 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Build and publish release assets
-        run: npx electron-builder --publish always
+      - name: Build release assets
+        run: npx electron-builder --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Validate and upload release assets
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          const { execFileSync, spawnSync } = require('node:child_process');
+          const version = require('./package.json').version;
+          const tag = process.env.RELEASE_TAG;
+          if (tag !== `v${version}`) throw new Error(`Tag ${tag} does not match package version ${version}`);
+          const expected = process.platform === 'darwin'
+            ? ['latest-mac.yml', ...['arm64', 'x64'].flatMap(arch =>
+                ['dmg', 'zip'].map(ext => `youtube2txt-v${version}-mac-${arch}.${ext}`))]
+            : process.platform === 'win32'
+              ? ['latest.yml', `youtube2txt-v${version}.exe`]
+              : ['latest-linux.yml', `youtube2txt-v${version}.AppImage`];
+          for (const name of expected) {
+            if (!fs.existsSync(`dist/${name}`) || fs.statSync(`dist/${name}`).size === 0) {
+              throw new Error(`Required release asset missing or empty: ${name}`);
+            }
+          }
+          const gh = args => execFileSync('gh', args, { stdio: 'inherit' });
+          // Keep new releases in draft until the maintainer publishes them.
+          if (spawnSync('gh', ['release', 'view', tag], { stdio: 'ignore' }).status !== 0) {
+            gh(['release', 'create', tag, '--verify-tag', '--draft', '--title', tag, '--generate-notes']);
+          }
+          // Upload installers before exposing update metadata.
+          const files = fs.readdirSync('dist').filter(name => /\.(dmg|zip|exe|AppImage|blockmap)$/.test(name));
+          gh(['release', 'upload', tag, ...files.map(name => `dist/${name}`), '--clobber']);
+          gh(['release', 'upload', tag, `dist/${expected[0]}`, '--clobber']);
+          JS
       - name: Log build outputs
         run: node -e "const fs=require('fs');const p='dist';if(!fs.existsSync(p)){console.log('dist/ not found');process.exit(0);}console.log('dist/ outputs:');for(const f of fs.readdirSync(p))console.log('- '+f);"
       - name: Log publish completion
