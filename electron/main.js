@@ -28,6 +28,12 @@ let updateDownloadProgress = null;
 let updateAvailableVersion = null;
 let isQuitting = false;
 
+// Stay out of the Dock and app switcher, including during startup and dialogs.
+// LSUIElement applies the same policy before packaged apps launch.
+if (IS_MAC) {
+    app.setActivationPolicy('accessory');
+}
+
 // Single-instance guard: second launch reuses the running server and opens the UI.
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -359,9 +365,6 @@ function setupAutoUpdater() {
 async function boot() {
     // Start local server, wait for readiness, then keep the tray ready for the user to open the UI.
     app.setAppUserModelId('com.spacesoda.youtube2txt');
-    if (process.platform === 'darwin' && app.dock) {
-        app.dock.hide();
-    }
     setupAutoUpdater();
 
     const dataDir = ensureDataDir();

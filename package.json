@@ -1,6 +1,6 @@
 {
   "name": "youtube2txt",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Local server for fetching YouTube transcripts",
   "author": "SPACESODA",
   "main": "server.js",
@@ -66,7 +66,10 @@
       ],
       "compression": "maximum",
       "category": "public.app-category.productivity",
-      "artifactName": "youtube2txt-v${version}-mac-${arch}.${ext}"
+      "artifactName": "youtube2txt-v${version}-mac-${arch}.${ext}",
+      "extendInfo": {
+        "LSUIElement": true
+      }
     },
     "win": {
       "target": [
