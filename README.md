@@ -2,7 +2,7 @@
 
 **youtube2txt** (YouTube Transcript Grabber) extracts available YouTube captions into clean text using `yt-dlp` on your own machine.
 
-Current source version: **v1.4.2**. This version keeps the macOS app in the menu bar without a Dock icon and fixes release asset uploads for update checks. It includes the dependency security updates from v1.4.1.
+Current source version: **v1.4.2**. This version keeps the macOS app in the menu bar without a Dock icon and fixes release asset uploads for update checks.
 
 > [!IMPORTANT]
 > Run the backend locally so requests use your own network connection. YouTube may still require cookies, apply rate limits, or block requests. Transcripts are available only when the video has accessible captions.
