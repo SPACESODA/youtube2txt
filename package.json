@@ -1,6 +1,6 @@
 {
   "name": "youtube2txt",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Local server for fetching YouTube transcripts",
   "author": "SPACESODA",
   "main": "server.js",
@@ -10,7 +10,7 @@
     "quickstart": "node scripts/quickstart.js",
     "test": "node --test",
     "electron": "node scripts/run-electron.js",
-    "dist": "electron-builder && echo \"Build finished\" && node scripts/cleanup-dist.js",
+    "dist": "electron-builder --publish never && echo \"Build finished\" && node scripts/cleanup-dist.js",
     "dist:mac-arm64": "electron-builder --mac dmg --arm64 --publish never && node scripts/cleanup-dist.js",
     "dist:mac-x64": "electron-builder --mac dmg --x64 --publish never && node scripts/cleanup-dist.js",
     "dist:mac-update-arm64": "electron-builder --mac zip --arm64 --publish never",
@@ -28,7 +28,8 @@
   },
   "devDependencies": {
     "electron": "^44.8.0",
-    "electron-builder": "^26.17.0"
+    "electron-builder": "^26.17.0",
+    "js-yaml": "^4.3.2"
   },
   "volta": {
     "node": "24"

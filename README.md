@@ -2,7 +2,7 @@
 
 **youtube2txt** (YouTube Transcript Grabber) extracts available YouTube captions into clean text using `yt-dlp` on your own machine.
 
-Current source version: **v1.4.2**. This version keeps the macOS app in the menu bar without a Dock icon and fixes release asset uploads for update checks.
+Current source version: **v1.4.3**. This version verifies the complete release asset set before handoff for publishing. The macOS app runs in the menu bar without a Dock icon.
 
 > [!IMPORTANT]
 > Run the backend locally so requests use your own network connection. YouTube may still require cookies, apply rate limits, or block requests. Transcripts are available only when the video has accessible captions.
@@ -27,7 +27,7 @@ Current source version: **v1.4.2**. This version keeps the macOS app in the menu
 
 Download an available installer from [GitHub Releases](https://github.com/SPACESODA/youtube2txt/releases). The source version above may be newer than the published installers. The app starts the local server in the background and includes its own Node runtime. The macOS app requires **macOS 13 (Ventura) or later**.
 
-For a locally built v1.4.2 macOS installer, open `dist/youtube2txt-v1.4.2-mac-arm64.dmg` on Apple Silicon or the corresponding `mac-x64.dmg` on Intel, drag the app to Applications, and launch it. Each installer must be built separately. Unsigned builds may require approval in macOS System Settings → Privacy & Security.
+For a locally built v1.4.3 macOS installer, open `dist/youtube2txt-v1.4.3-mac-arm64.dmg` on Apple Silicon or the corresponding `mac-x64.dmg` on Intel, drag the app to Applications, and launch it. Each installer must be built separately. Unsigned builds may require approval in macOS System Settings → Privacy & Security.
 
 On macOS, the app runs in the menu bar without a Dock icon. On Windows, it runs in the system tray (notification area), without an application window or taskbar button; Windows may put the icon in the hidden-icons overflow. Click the **app icon** to open the **menu**, launch the browser UI, check for updates, or quit. (If port 3000 is busy, the app picks the next available port automatically.)
 
@@ -138,6 +138,18 @@ npm run dist:mac-update-arm64
 npm run dist:mac-update-x64
 ```
 Build artifacts are written to `dist/`. The installer target depends on the OS you build on (macOS DMG, Windows NSIS, Linux AppImage).
+
+### Publishing a release
+
+1. Merge the version change into `main`. The version in `package.json` and `package-lock.json` must match.
+2. Create and push the matching Git tag (for example, `v1.4.3`). Push each version tag only once. This starts **Build and Release** in GitHub Actions.
+3. Wait for the entire workflow, including **Verify complete release**, to pass. macOS builds both Apple Silicon and Intel installers and ZIPs, so it can finish much later than the other platforms.
+4. Open the draft release after its title changes from “building” to the version number and check its assets. It must contain `latest-mac.yml`, `latest.yml`, `latest-linux.yml`, the Mac `.dmg` and `.zip` files for both architectures, the Windows `.exe`, and the Linux `.AppImage`.
+5. Publish the draft only after **Verify complete release** passes. The complete set contains **14 uploaded assets** (plus GitHub’s two source archives). Publishing early exposes an incomplete release: Mac update checks return a 404 until `latest-mac.yml` is uploaded, and DMGs are unavailable until the macOS job finishes.
+
+The workflow creates the draft before building and verifies the complete asset set after all platform uploads finish. It never publishes the release. If a job fails, fix the cause and rerun it, or manually run **Build and Release** from `main` with the existing version tag. Merging into `main` alone does not build desktop release assets.
+
+On macOS, **Check for updates** checks availability; download and install the DMG manually from GitHub Releases when an update is available.
 
 ### Dependency security
 

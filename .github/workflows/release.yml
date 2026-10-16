@@ -7,14 +7,48 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Existing release tag to build (e.g. v1.4.1)'
+        description: 'Existing release tag to build (e.g. v1.4.3)'
         required: true
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check version and prepare draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          node <<'JS'
+          const { execFileSync } = require('node:child_process');
+          const version = require('./package.json').version;
+          const lock = require('./package-lock.json');
+          const tag = process.env.RELEASE_TAG;
+          if (tag !== `v${version}` || lock.version !== version || lock.packages[''].version !== version) {
+            throw new Error('Release tag, package.json, and package-lock.json versions must match');
+          }
+          const gh = args => execFileSync('gh', args, { encoding: 'utf8' });
+          let release;
+          try { release = JSON.parse(gh(['release', 'view', tag, '--json', 'isDraft'])); }
+          catch { gh(['release', 'create', tag, '--verify-tag', '--draft', '--title', `${tag} — building`, '--generate-notes']); }
+          if (release && !release.isDraft) console.log('Rebuilding an existing published release; publication status will not be changed.');
+          JS
+
   build:
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
@@ -32,46 +66,53 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Test
+        run: npm test
       - name: Build release assets
         run: npx electron-builder --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      - name: Validate and upload release assets
+      - name: Validate installers and updater checksums
+        run: node scripts/release-assets.js local
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      - name: Upload installers then updater metadata
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
           node <<'JS'
-          const fs = require('node:fs');
-          const { execFileSync, spawnSync } = require('node:child_process');
-          const version = require('./package.json').version;
-          const tag = process.env.RELEASE_TAG;
-          if (tag !== `v${version}`) throw new Error(`Tag ${tag} does not match package version ${version}`);
-          const expected = process.platform === 'darwin'
-            ? ['latest-mac.yml', ...['arm64', 'x64'].flatMap(arch =>
-                ['dmg', 'zip'].map(ext => `youtube2txt-v${version}-mac-${arch}.${ext}`))]
-            : process.platform === 'win32'
-              ? ['latest.yml', `youtube2txt-v${version}.exe`]
-              : ['latest-linux.yml', `youtube2txt-v${version}.AppImage`];
-          for (const name of expected) {
-            if (!fs.existsSync(`dist/${name}`) || fs.statSync(`dist/${name}`).size === 0) {
-              throw new Error(`Required release asset missing or empty: ${name}`);
-            }
-          }
-          const gh = args => execFileSync('gh', args, { stdio: 'inherit' });
-          // Keep new releases in draft until the maintainer publishes them.
-          if (spawnSync('gh', ['release', 'view', tag], { stdio: 'ignore' }).status !== 0) {
-            gh(['release', 'create', tag, '--verify-tag', '--draft', '--title', tag, '--generate-notes']);
-          }
-          // Upload installers before exposing update metadata.
-          const files = fs.readdirSync('dist').filter(name => /\.(dmg|zip|exe|AppImage|blockmap)$/.test(name));
-          gh(['release', 'upload', tag, ...files.map(name => `dist/${name}`), '--clobber']);
-          gh(['release', 'upload', tag, `dist/${expected[0]}`, '--clobber']);
+          const { execFileSync } = require('node:child_process');
+          const { expectedFiles } = require('./scripts/release-assets');
+          const [manifest, ...binaries] = expectedFiles(process.platform, require('./package.json').version);
+          const gh = files => execFileSync('gh', ['release', 'upload', process.env.RELEASE_TAG, ...files.map(name => `dist/${name}`), '--clobber'], { stdio: 'inherit' });
+          gh(binaries);
+          gh([manifest]);
           JS
-      - name: Log build outputs
-        run: node -e "const fs=require('fs');const p='dist';if(!fs.existsSync(p)){console.log('dist/ not found');process.exit(0);}console.log('dist/ outputs:');for(const f of fs.readdirSync(p))console.log('- '+f);"
-      - name: Log publish completion
-        run: echo "Published assets for ${{ matrix.os }}"
       - name: Cleanup build artifacts
         run: node scripts/cleanup-dist.js
+
+  verify:
+    name: Verify complete release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Verify all uploaded assets and updater manifests
+        run: node scripts/release-assets.js remote
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      - name: Mark draft ready for review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: gh release edit "$RELEASE_TAG" --title "$RELEASE_TAG"
